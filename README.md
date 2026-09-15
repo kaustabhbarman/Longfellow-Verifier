@@ -1,258 +1,1345 @@
-# meine-verifier
+# Longfellow Verifier
 
-A fork of [OpenWallet Foundation Multipaz](https://github.com/openwallet-foundation/multipaz)
-focused on the **web-based credential verifier** (`multipaz-verifier-server`).
+## 1. Overview
 
-Multipaz is a set of Kotlin Multiplatform libraries and applications for working with
-real-world identity credentials (ISO/IEC 18013-5 mdoc / mDL, IETF SD-JWT VC) and the
-presentment protocols around them (ISO/IEC 18013-7, W3C Digital Credentials API, and
-OpenID4VP 1.0).
+This repository contains the verifier side of the digital-identity flow.
 
-This fork keeps the upstream libraries intact and adds developer-facing tooling on top of the
-over-the-Internet verifier so it's easier to **inspect, debug, and benchmark** credential
-presentment exchanges — and easier to build and run the verifier on a plain server without the
-full Android toolchain.
+It has two closely related layers:
 
-## What's different from the upstream fork
+- **`multipaz-verifier`** — reusable verifier functionality for presentation requests, response processing, sessions, and result construction.
+- **`multipaz-verifier-server`** — the application server layer. It exposes HTTP endpoints, creates protocol-specific requests, handles the verifier flow, and adds the Longfellow zero-knowledge-proof verification path.
 
-All changes are additive and scoped to the verifier server and the build setup. They don't alter
-upstream library behavior.
-
-### 1. Build the verifier without an Android SDK
-
-The verifier server is a JVM/Ktor app, but upstream's `settings.gradle.kts` unconditionally
-included the Android-only `:multipaz-dcapi:matcherTest` module, which forces an Android SDK to be
-present even when you only want to build the server.
-
-- `settings.gradle.kts` now detects whether an Android SDK is available (via `ANDROID_HOME` or
-  `local.properties` → `sdk.dir`) and only includes `:multipaz-dcapi:matcherTest` when one exists.
-- `multipaz/build.gradle.kts` and `multipaz-dcapi/build.gradle.kts` reference that test project
-  defensively (`findProject(...)?.let { ... }`) so the build degrades gracefully when it's absent.
-
-The result: you can build and run `multipaz-verifier-server` on a headless Linux server with just
-a JDK, no Android SDK required.
-
-### 2. "Verification activity (debug)" panel
-
-The verifier's web UI (`index.html` + `verifier.js`) now includes a structured, collapsible
-debug panel that traces the last Digital Credentials API exchange end-to-end:
-
-1. **What we asked** — the presentation / DC request that was sent.
-2. **What we received** — the raw wallet response.
-3. **How we verified** — the server-side processing steps.
-4. **What we verified** — the checks that passed.
-5. **Issuer legitimacy** — X.509 chain validation against the built-in `TrustManager`
-   (OWF Multipaz test IACA, Google Wallet IACA, Multipaz test issuer roots).
-6. **Encryption** — the asymmetric/symmetric layers and algorithms used.
-
-On the server side (`verifier.kt`), a trace builder collects these steps into a
-`verificationActivity` JSON object that is returned alongside the credential results, and the
-server logs are enriched to make each stage of validation observable.
-
-### 3. ZKP proof validation benchmarks
-
-The verifier now measures and reports Zero-Knowledge Proof verification timing for ISO 18013-5
-ZK documents (backed by `multipaz-longfellow`):
-
-- `verifier.kt` times each `verifyProof(...)` call with a monotonic clock, logs the duration, and
-  attaches a `"ZKP proof validation time"` result line plus a dedicated `benchmarks` field on the
-  response.
-- Failures and "not measured" cases (no ZK document, ZK system spec not found, verification did
-  not complete) are reported explicitly instead of silently.
-- The web UI highlights the benchmark in a callout at the top of the results modal.
-
-## How to run the verifier server
-
-### Prerequisites
-
-- A JDK (JDK 17+ recommended). No Android SDK is required for the verifier server.
-- The bundled Gradle wrapper (`./gradlew`) handles everything else.
-
-### Run locally
-
-From the repository root:
-
-```shell
-./gradlew multipaz-verifier-server:run
-```
-
-By default the server listens on **port 8006** (see
-`multipaz-verifier-server/src/main/resources/resources/default_configuration.json`). Once it's up,
-open the verifier UI in a browser:
-
-```
-http://localhost:8006/
-```
-
-To point the verifier at a local records / enrollment server, pass arguments through Gradle:
-
-```shell
-./gradlew multipaz-verifier-server:run --args="-param enrollment_server_url=http://localhost:8004"
-```
-
-### Build a distributable artifact
-
-```shell
-./gradlew multipaz-verifier-server:build
-```
-
-### Configuration
-
-Default settings live in
-`multipaz-verifier-server/src/main/resources/resources/default_configuration.json`:
-
-```json
-{
-  "server_port": 8006,
-  "ca_trust_servers": [
-    "*.multipaz.org/**",
-    "sorotokin.com/**"
-  ]
-}
-```
-
-Adjust `server_port` to change the listening port and `ca_trust_servers` to control which CA
-trust endpoints are honored.
+The implementation is built on Multipaz and supports mdoc / ISO 18013-5 presentations, OpenID4VP, W3C Digital Credentials API flows, and Longfellow-backed zero-knowledge proofs.
 
 ---
 
-Everything below documents the upstream Multipaz project and its other modules, libraries, and
-tooling. It is unchanged from upstream.
+## 2. Role in 
 
-# Multipaz
+The  flow can be viewed as:
 
-This repository contains libraries and applications for working with real-world
-identity. The initial focus for this work was mdoc/mDL according to [ISO/IEC 18013-5:2021](https://www.iso.org/standard/69084.html)
-and related standards but the current scope also include other credential formats and
-presentment protocols.
-
-## Multipaz Libraries
-
-The project provides libraries written in [Kotlin Multiplatform](https://kotlinlang.org/docs/multiplatform.html):
-
-- `multipaz` provides the core building blocks. It works on Android,
-  iOS, and in server-side environments. The library includes support 
-  for ISO mdoc and IETF SD-JWT VC credential formats and also implements
-  proximity presentment using ISO/IEC 18013-5:2021 (for ISO mdoc credentials)
-  and presentment to applications using the W3C Digital Credentials API
-  according to ISO/IEC 18013-7:2025 and OpenID4VP 1.0.
-- `multipaz-compose` provides rich UI elements to be used in Compose
-  applications.
-- `multipaz-utopia` contains document and transaction data types specific
-  to the Multipaz Utopia universe.
-- `multipaz-doctypes` contains standardized document and transaction data
-  types (including ISO/IEC 18013-5:2021 mDL and EU PID) along with human-readable
-  descriptions of claims / data elements, sample data, and sample requests.
-- `multipaz-longfellow` bundles the [Google Longfellow-ZK](https://github.com/google/longfellow-zk) library
-  and integrates with the core `multipaz` for Zero-Knowledge Proofs
-  according to latest available [ISO/IEC 18013-5 Second Edition draft](https://github.com/ISOWG10/ISO-18013).
-- `multipaz-swiftui` contains SwiftUI components which can be used in
-  Swift applications.
-
-## Command-line tool
-
-A command-line tool `multipazctl` is also included which can be used to generate
-ISO/IEC 18013-5:2021 IACA certificates among other things. Use
-`./gradlew --quiet runMultipazCtl --args "help"` for documentation on supported
-verbs and options. To set up a wrapper, first build the fat jar
-
-```shell
-$ ./gradlew multipazctl:buildFatJar
+```text
+Issuer ───── issuance ─────> Wallet
+                               │
+                               │ presentation
+                               ▼
+                           Verifier
+                               │
+                    ┌──────────┼──────────┐
+                    ▼          ▼          ▼
+                 mdoc       issuer     Longfellow
+                 checks      trust         ZKP
 ```
 
-then create a wrapper like this
-```shell
-#!/bin/sh
-MAIN_CLASS="org.multipaz.multipazctl.MultipazCtl"
-CLASSPATH="/Users/davidz/StudioProjects/identity-credential/multipazctl/build/libs/multipazctl-all.jar"
-JVM_OPTS="-Xms256m -Xmx512m"
-exec java $JVM_OPTS -cp "$CLASSPATH" "$MAIN_CLASS" "$@"
+The verifier does not create the user's credential. Its responsibility is to:
+
+1. Create a presentation request.
+2. Bind the request to a verifier session and nonce.
+3. Receive the wallet's presentation.
+4. Reconstruct the required session context.
+5. Verify the cryptographic integrity of the presentation.
+6. Verify issuer trust separately.
+7. Verify Longfellow zero-knowledge proofs when applicable.
+8. Return the claims requested by the application.
+
+---
+
+## 3. Repository Structure
+
+```text
+Longfellow-verifier/
+│
+├── multipaz/
+│   └── Core Multipaz implementation
+│
+├── multipaz-server/
+│   └── Server-side presentation verification
+│
+├── multipaz-verifier/
+│   └── Reusable verifier/session/request processing
+│
+├── multipaz-verifier-server/
+│   └── verifier HTTP server and application flow
+│
+├── multipaz-longfellow/
+│   └── Longfellow integration
+│
+├── multipaz-doctypes/
+│   └── Document type definitions
+│
+├── config/
+│   └── Shared configuration
+│
+└── gradlew
+    └── Gradle wrapper
 ```
 
-in e.g. `~/bin/multipazctl` adjusting paths as needed. With this you can now
-invoke `multipazctl` like any other system tool.
+Important source areas:
 
-## Library releases, Versioning, and Stability
+```text
+multipaz-verifier/
+    src/main/java/org/multipaz/verifier/
 
-Libraries are released on [Maven Central](https://mvnrepository.com/artifact/org.multipaz/multipaz)
-usually every 4-8 weeks. Releases up until and including 0.97.0 can be found on [GMaven](https://maven.google.com/).
-[Semantic Versioning](https://en.wikipedia.org/wiki/Software_versioning#Semantic_versioning)
-is used. At this time we're in pre-1.0 territory but we expect to hit 1.0 around
-late 2026 or early 2027.
+multipaz-verifier-server/
+    src/main/java/org/multipaz/verifier/server/
 
-We are also making Multipaz available as a [Swift package](https://github.com/openwallet-foundation/multipaz/blob/main/Package.swift)
-which includes the `multipaz`, `multipaz-doctypes`,
-`multipaz-longfellow`, and `multipaz-swiftui` libraries. This is built using
-[SKIE](https://skie.touchlab.co/). Be careful relying on this as Swift/Kotlin interop technology
-might change in the near future with e.g. [Swift Export](https://kotlinlang.org/docs/native-swift-export.html).
+multipaz-server/
+    src/main/java/org/multipaz/server/presentment/
 
-At this point both API interfaces and data stored on disk are subject to change
-but we expect to provide stability guarantees post 1.0. We only expect minor changes
-for example conversion from `ByteArray` to `ByteString` and similar things.
+multipaz/
+    src/commonMain/kotlin/org/multipaz/mdoc/
+```
 
-## Getting involved
+---
 
-We have resources for people already involved and people wishing to contribute
-to the Multipaz project
-- [CONTRIBUTING.md](CONTRIBUTING.md) for how to get involved with the project and send PRs.
-- [CODE-OF-CONDUCT.md](CODE-OF-CONDUCT.md) for the policies and rules around collaboration.
-- [CODING-STYLE.md](CODING-STYLE.md) for guidelines on writing code to be included in the project.
-- [TESTING.md](TESTING.md) explains our approach to unit and manual testing.
-- [DEVELOPER-ENVIRONMENT.md](DEVELOPER-ENVIRONMENT.md) for how to set up your system for building Multipaz.
-- [Lokalize Plugin](build-logic/lokalize/README.md) for managing translations in `multipaz-compose`, `multipaz-doctypes`, and `multipaz-utopia` (AI-assisted translation and validation).
+## 4. High-Level Architecture
 
-Note: If you're just looking to use the Multipaz libraries you do not need to build
-the entire Multipaz project from source. Instead, just use our released libraries,
-see the next section for an example of this.
+The verifier can be understood as a layered pipeline:
 
-## Examples / Samples
+```text
+HTTP request
+    │
+    ▼
+multipaz-verifier-server
+    │
+    │ application/protocol handling
+    ▼
+multipaz-verifier
+    │
+    │ session + request orchestration
+    ▼
+multipaz-server
+    │
+    │ PresentmentRecord
+    ▼
+DeviceResponse
+    │
+    ▼
+MdocDocument
+    │
+    ├── issuer signature
+    ├── MSO checks
+    ├── device authentication
+    ├── issuer namespace digests
+    └── transaction hashes
+```
 
-For a fully-fledged mDL wallet, our current answer is to use the `samples/testapp`
-module which works on both Android and iOS. This application is intended for
-developers and as such has a lot of options and settings. It's intended to
-exercise all code in the libraries. Prebuilt APKs are available from
-https://apps.multipaz.org.
+For a Longfellow ZK presentation there is an additional path:
 
-For a SwiftUI version of `samples/testapp` see `samples/SwiftTestApp` which works
-on iOS and is a testbed for the Swift bindings as well as the SwiftUI components
-in `multipaz-swiftui`.
+```text
+DeviceResponse
+    │
+    └── zkDocuments
+            │
+            ▼
+       ZkSystemSpec
+            │
+            ▼
+         ZkSystem
+            │
+            ▼
+       verifyProof(...)
+            │
+            ▼
+        Longfellow
+```
 
-For a fully-featured proximity reader app using Multipaz, see
-[MpzIdentityReader](https://github.com/openwallet-foundation/multipaz-identity-reader/).
-Prebuilt APKs are available from https://apps.multipaz.org.
+**Normal mdoc verification and Longfellow ZKP verification are separate operations.**
 
-For an over-the-Internet verifier supporting OpenID4VP (both W3C DC API and
-URI schemes) and ISO/IEC 18013-7 Annex A and C see https://verifier.multipaz.org.
+---
 
-To see how to use Multipaz in a 3rd party project, see
-https://github.com/openwallet-foundation/multipaz-samples/ which includes
-a number of samples for different platforms.
+## 5. Server Entry Point
 
-## Developer Resources
+The application entry point is:
 
-[developer.multipaz.org](https://developer.multipaz.org) is a comprehensive resource for developers. **The entire developer website is open source** and contributions are welcome!
+```text
+multipaz-verifier-server/
+└── .../Main.kt
+```
 
-### Documentation
+`Main` acts as the composition root. It registers the important verifier dependencies:
 
-- [Getting Started](https://developer.multipaz.org/docs/getting-started): Provides foundational knowledge for new users.
-- [API Reference](https://developer.multipaz.org/kdocs/index.html): Comprehensive documentation for every API endpoint, providing thorough understanding of the available functionalities.
-- [Codelabs](https://developer.multipaz.org/codelabs): Guided tutorials on key identity credential concepts, along with sample apps that provide tangible examples to accelerate development.
-- [Showcase Apps](https://developer.multipaz.org/showcase): Real-world applications built leveraging the Multipaz framework.
+```kotlin
+add(DocumentTypeRepository::class, documentTypeRepo)
+add(TrustManagerInterface::class, getIssuerTrustManager())
+add(VerifierAssistant::class, VerifierAssistantImpl)
+```
 
-### Applications
+It then configures the server routing.
 
-- [Android Apps](https://apps.multipaz.org/)
-- [Web Verifier App](https://verifier.multipaz.org/)
-- [Issuer Portal](https://issuer.multipaz.org/)
-- [Identity Reader Backend](http://identityreader.multipaz.org/)
+The entry point mainly performs dependency wiring and startup; the actual verification logic is implemented in the modules below it.
 
-### Community & Contribution
+---
 
-- [Contributing Guide](https://developer.multipaz.org/contributing/contributing)
-- [Website Contribution Guide](https://github.com/openwallet-foundation/multipaz-developer-website)
-- [Blog](https://developer.multipaz.org/blog)
-- [Discord](https://discord.com/invite/openwalletfoundation)
+## 6. HTTP Routing
 
-## Note
+The server configures routes in:
 
-This is not an official or supported Google product.
+```text
+multipaz-verifier-server/
+└── .../ApplicationExt.kt
+```
+
+The reusable verifier routes are registered by:
+
+```text
+multipaz-verifier/
+└── .../server/routing.kt
+```
+
+Important reusable endpoints include:
+
+```text
+POST /make_request
+GET  /get_request/{sessionId}
+POST /direct_post/{sessionId}
+GET  /get_result/{sessionId}
+POST /process_response
+```
+
+The application-specific server also exposes commands such as:
+
+```text
+getAvailableRequests
+openid4vpBegin
+openid4vpRequest
+openid4vpResponse
+openid4vpGetData
+dcBegin
+dcBeginRawDcql
+dcGetData
+annexABegin
+annexARequest
+annexAGetData
+```
+
+---
+
+## 7. Verifier Sessions
+
+A presentation is associated with a verifier session.
+
+The reusable verifier session contains:
+
+```kotlin
+data class Session(
+    val nonce: ByteString,
+    val encryptionPrivateKey: EcPrivateKey,
+    val dcqlQuery: String,
+    val jsonTransactionData: List<String>?,
+    var presentmentRecord: PresentmentRecord?,
+    var result: String? = null
+)
+```
+
+The session therefore provides:
+
+- a random nonce
+- an ephemeral P-256 encryption key
+- the DCQL request
+- transaction data
+- the received presentation
+- the final verification result
+
+The specialized server session additionally tracks request format, document type, protocol, nonce, origin, host, response URI, device responses, verifiable presentations, session transcript, and reader engagement.
+
+This state is important because verification must use the same session context that was used when the wallet generated its response.
+
+---
+
+## 8. Request Generation and DCQL
+
+The verifier starts by deciding which credentials and claims it needs.
+
+The request is represented using **DCQL (Digital Credentials Query Language)**.
+
+```text
+Verifier
+   │
+   │ "I need these claims"
+   ▼
+DCQL
+   │
+   ▼
+Presentation request
+   │
+   ▼
+Wallet
+```
+
+The reusable `makeRequest()` flow:
+
+1. Receives an application request.
+2. Passes it through `VerifierAssistant.processRequest()`.
+3. Extracts the DCQL query.
+4. Determines the exchange protocols.
+5. Creates a verifier session.
+6. Generates a Digital Credentials API request.
+
+If no protocols are specified, the default exchange protocols are:
+
+```text
+org-iso-mdoc
+openid4vp-v1-signed
+```
+
+If the requested credential formats are non-mdoc, the ISO mdoc exchange protocol is removed.
+
+---
+
+## 9. VerifierAssistant
+
+Application-specific customization is provided by:
+
+```text
+multipaz-verifier/
+└── .../customization/VerifierAssistant.kt
+```
+
+It exposes:
+
+```kotlin
+interface VerifierAssistant {
+    suspend fun processRequest(request: JsonObject): ExpandedRequest?
+    suspend fun processResponse(presentment: VerifierPresentment): JsonObject?
+}
+```
+
+`processRequest()` can validate or modify a request before it becomes a wallet-facing presentation request.
+
+`processResponse()` is called after successful verification and can customize the final application response.
+
+This keeps generic verifier behavior separate from application-specific policy.
+
+---
+
+## 10. Receiving the Wallet Presentation
+
+The reusable verifier has two important response paths.
+
+For:
+
+```text
+POST /process_response
+```
+
+the verifier:
+
+1. Reads the session ID.
+2. Reads the Digital Credentials response.
+3. Determines the protocol.
+4. Builds a `PresentmentRecord`.
+5. Calls `processResult()`.
+6. Stores the result in the session.
+
+For ISO mdoc:
+
+```text
+DC response
+    │
+    ▼
+PresentmentRecordMdoc
+```
+
+For OpenID4VP:
+
+```text
+DC response
+    │
+    ▼
+PresentmentRecordOpenID4VP
+```
+
+---
+
+## 11. PresentmentRecord
+
+The common abstraction is located under:
+
+```text
+multipaz-server/
+└── .../presentment/
+```
+
+Important classes are:
+
+```text
+PresentmentRecord
+PresentmentRecordMdoc
+PresentmentRecordOpenID4VP
+
+PresentmentResult
+PresentmentResultMdoc
+PresentmentResultSdJwt
+```
+
+The core abstraction is:
+
+```kotlin
+abstract suspend fun verifyNonce(nonce: ByteString)
+
+abstract suspend fun verify(atTime: Instant): List<PresentmentResult>
+```
+
+The generic processing sequence is:
+
+```text
+processResult()
+      │
+      ├── verifyNonce()
+      ├── presentmentRecord.verify()
+      ├── createResult()
+      └── VerifierAssistant.processResponse()
+```
+
+This is the bridge between the presentation protocol and cryptographic credential verification.
+
+---
+
+## 12. ISO mdoc Verification
+
+For an mdoc response:
+
+```text
+PresentmentRecordMdoc.verify()
+        │
+        ▼
+DeviceResponse.fromDataItem()
+        │
+        ▼
+DeviceResponse.verify()
+        │
+        ▼
+MdocDocument.verify()
+```
+
+`PresentmentRecordMdoc` first validates the relationship between the received `encryptionInfo` and the session transcript.
+
+It then parses the `DeviceResponse`.
+
+Finally it invokes:
+
+```kotlin
+deviceResponse.verify(
+    sessionTranscript = sessionTranscript,
+    eReaderKey = null,
+    transactionDataList = getTransactionData(documentTypeRepository),
+    atTime = atTime
+)
+```
+
+After document integrity succeeds, issuer trust is evaluated separately:
+
+```kotlin
+trustManager.verify(
+    document.issuerCertChain.certificates,
+    atTime
+)
+```
+
+This separation is intentional:
+
+```text
+Cryptographic integrity
+        ≠
+Issuer trust
+```
+
+A correctly signed document is not automatically trusted by the verifier.
+
+---
+
+## 13. DeviceResponse Verification
+
+The implementation is:
+
+```text
+multipaz/
+└── src/commonMain/kotlin/org/multipaz/mdoc/response/DeviceResponse.kt
+```
+
+`DeviceResponse.verify()` iterates over returned documents and delegates to:
+
+```kotlin
+document.verify(
+    sessionTranscript,
+    eReaderKey,
+    transactionData,
+    atTime
+)
+```
+
+It controls access to parsed documents: a response received from a remote device must be verified before its `documents` property can be accessed.
+
+The documented checks include:
+
+- issuer MSO signature
+- document type consistency
+- MSO validity period
+- issuer namespace digests
+- device authentication
+- transaction data hashes
+
+The implementation explicitly leaves these to the application:
+
+- issuer certificate trust
+- revocation checks
+- zero-knowledge-proof verification
+- encrypted-document handling
+
+---
+
+## 14. MdocDocument Verification
+
+Detailed normal mdoc verification is implemented in:
+
+```text
+multipaz/
+└── src/commonMain/kotlin/org/multipaz/mdoc/response/MdocDocument.kt
+```
+
+The sequence is:
+
+```text
+MdocDocument.verify()
+       │
+       ├── 1. Verify issuer/MSO signature
+       │
+       ├── 2. Check DocType
+       │
+       ├── 3. Check MSO validity
+       │
+       ├── 4. Build DeviceAuthentication
+       │
+       ├── 5. Verify device authentication
+       │
+       ├── 6. Verify issuer namespace digests
+       │
+       └── 7. Verify transaction hashes
+```
+
+### 14.1 Issuer/MSO signature
+
+The issuer certificate chain is obtained from the COSE `x5chain` header.
+
+The leaf certificate public key is used to verify the COSE_Sign1 signature over the MSO.
+
+```text
+COSE_Sign1
+   │
+   ├── protected headers
+   ├── MSO payload
+   └── signature
+          │
+          ▼
+   issuer certificate
+          │
+          ▼
+      public key
+          │
+          ▼
+   verify signature
+```
+
+If the signature fails, the document is rejected.
+
+### 14.2 DocType
+
+The response document's `docType` must match the MSO's `docType`.
+
+```text
+response.docType == MSO.docType
+```
+
+### 14.3 MSO validity
+
+The verification time must satisfy:
+
+```text
+MSO.validFrom
+    ≤
+verification time
+    ≤
+MSO.validUntil
+```
+
+### 14.4 Device Authentication
+
+The verifier builds:
+
+```text
+DeviceAuthentication
+    =
+[
+    "DeviceAuthentication",
+    sessionTranscript,
+    docType,
+    encoded deviceNamespaces
+]
+```
+
+For ECDSA device authentication, the verifier uses:
+
+```text
+MSO.deviceKey
+```
+
+to verify the device signature.
+
+For MAC-based authentication, the verifier derives the MAC key using the reader key and device key.
+
+Device authentication therefore binds the returned device data to the session transcript and document type.
+
+### 14.5 Issuer namespace digests
+
+The MSO contains value digests.
+
+For each returned issuer-signed item, the verifier calculates the digest and compares it with the digest referenced by the item's `digestId`.
+
+```text
+IssuerSignedItem
+       │
+       ▼
+digest algorithm from MSO
+       │
+       ▼
+calculated digest
+       │
+       ▼
+compare with MSO.valueDigests
+```
+
+This protects issuer-signed claims from modification.
+
+### 14.6 Transaction data
+
+For every requested transaction, the verifier expects:
+
+```text
+transaction_data_hash
+transaction_data_hash_alg
+```
+
+It independently calculates the transaction hash and compares it with the device-provided hash.
+
+---
+
+## 15. Issuer Trust
+
+Issuer signature verification and issuer trust are separate.
+
+Normal mdoc verification proves:
+
+```text
+The MSO was signed by the private key
+corresponding to the supplied signing certificate.
+```
+
+The trust manager determines:
+
+```text
+The certificate chain is trusted by this verifier.
+```
+
+The the verifier uses:
+
+```kotlin
+TrustManagerInterface
+```
+
+and:
+
+```kotlin
+trustManager.verify(
+    document.issuerCertChain.certificates,
+    atTime
+)
+```
+
+Therefore a document can be cryptographically valid while still being rejected as untrusted.
+
+---
+
+## 16. Longfellow Zero-Knowledge Proof Verification
+
+Longfellow verification is **not part of `DeviceResponse.verify()`**.
+
+The `DeviceResponse` implementation explicitly places ZKP integrity checking at the application level.
+
+A response can contain:
+
+```text
+DeviceResponse
+    │
+    └── zkDocuments
+```
+
+The the verifier handles these separately:
+
+```text
+handleGetDataMdoc()
+       │
+       ▼
+DeviceResponse.verify()
+       │
+       ├── normal mdoc integrity
+       │
+       └── zkDocuments
+              │
+              ▼
+       find ZkSystemSpec
+              │
+              ▼
+       ZkSystemRepository.lookup(...)
+              │
+              ▼
+       ZkSystem.verifyProof(...)
+              │
+              ▼
+          Longfellow
+```
+
+The important interface is:
+
+```kotlin
+ZkSystem.verifyProof(
+    zkDocument,
+    zkSystemSpec,
+    sessionTranscript
+)
+```
+
+A ZK presentation therefore has two distinct verification layers:
+
+```text
+Layer 1: Normal mdoc integrity
+ ├── issuer signature
+ ├── MSO
+ ├── device authentication
+ ├── digests
+ └── transaction binding
+
+Layer 2: Zero-knowledge proof
+ └── Longfellow proof verification
+```
+
+---
+
+## 17. Why the Session Transcript Matters
+
+The session transcript connects the credential presentation to the verifier session.
+
+The verifier session contains a nonce and an ephemeral P-256 encryption key. The presentation flow uses this session information to construct or reconstruct the session transcript.
+
+Device authentication then includes that transcript:
+
+```text
+Verifier session
+      │
+      ├── nonce
+      ├── verifier identity/origin
+      └── ephemeral key
+             │
+             ▼
+       Session Transcript
+             │
+       ┌─────┴─────┐
+       ▼           ▼
+Device Auth      ZK proof
+```
+
+This provides session binding: a presentation generated for one verifier session cannot simply be reused as if it belonged to another session.
+
+---
+
+## 18. OpenID4VP Verification
+
+`PresentmentRecordOpenID4VP` supports:
+
+```text
+mso_mdoc
+dc+sd-jwt
+```
+
+For `mso_mdoc`, verification converges on the same core mdoc path:
+
+```text
+OpenID4VP
+   │
+   ▼
+vp_token
+   │
+   ▼
+mso_mdoc
+   │
+   ▼
+DeviceResponse
+   │
+   ▼
+DeviceResponse.verify()
+   │
+   ▼
+MdocDocument.verify()
+```
+
+For `dc+sd-jwt`, the verifier uses the SD-JWT / SD-JWT+KB verification APIs.
+
+The OpenID4VP implementation also performs issuer certificate-chain trust evaluation.
+
+---
+
+## 19. Result Construction
+
+After verification succeeds, the verifier does not automatically return the complete credential.
+
+The DCQL request determines which claims are returned.
+
+```text
+Verified presentation
+        │
+        ▼
+DCQL requested documents
+        │
+        ▼
+match result to request ID
+        │
+        ▼
+extract requested claims
+        │
+        ▼
+application result
+```
+
+For an mdoc result, the verifier includes requested claims and transaction results together with the issuer trust result.
+
+---
+
+## 20. Debugging and Verification Trace
+
+The specialized verifier contains debugging and tracing support, including:
+
+```text
+rememberDcPresentationForDebug
+sessionDebugSnapshot
+addZkpBenchmarkLine
+isZkpBenchmarkLine
+```
+
+When debugging a failed presentation, trace it in this order:
+
+```text
+1. Request creation
+       ↓
+2. Session creation
+       ↓
+3. Wallet response received
+       ↓
+4. Response decryption
+       ↓
+5. Session transcript reconstruction
+       ↓
+6. DeviceResponse parsing
+       ↓
+7. DeviceResponse.verify()
+       ↓
+8. MdocDocument.verify()
+       ↓
+9. TrustManager.verify()
+       ↓
+10. ZkSystem.verifyProof()
+```
+
+This helps distinguish protocol, session, credential-integrity, trust, and ZKP failures.
+
+---
+
+## 21. ZKP Benchmarking
+
+The the verifier measures Longfellow verification time separately from normal mdoc verification.
+
+The specialized verifier contains:
+
+```text
+formatBenchmarkDurationMs
+isZkpBenchmarkLine
+addZkpBenchmarkLine
+```
+
+The measurement surrounds the Longfellow `verifyProof()` operation.
+
+Therefore:
+
+```text
+normal mdoc verification time
+        ≠
+Longfellow ZKP verification time
+```
+
+This separation is useful when analyzing the performance cost of zero-knowledge verification.
+
+---
+
+## 22. Running the Verifier
+
+From the repository root:
+
+```bash
+./gradlew multipaz-verifier-server:run
+```
+
+On Windows:
+
+```powershell
+.\gradlew.bat multipaz-verifier-server:run
+```
+
+The verifier server is configured for Java 17.
+
+If a local records/enrollment server is required, the server supports:
+
+```bash
+./gradlew multipaz-verifier-server:run   --args="-param enrollment_server_url=http://localhost:8004"
+```
+
+Check the repository configuration before assuming a particular verifier HTTP port, because the runtime port can be controlled by server configuration.
+
+---
+
+## 23. Requirements
+
+The verifier is built around:
+
+- Java/JVM
+- Kotlin
+- Gradle
+- Ktor
+- Multipaz
+- Longfellow integration
+- configured verifier trust management
+
+The `multipaz-verifier-server` module targets Java 17.
+
+Use the included Gradle wrapper:
+
+```bash
+./gradlew
+```
+
+---
+
+## 24. Source-Code Map
+
+| What you want to understand | Main source |
+|---|---|
+| Server startup | `multipaz-verifier-server/.../Main.kt` |
+| Server routing | `multipaz-verifier-server/.../ApplicationExt.kt` |
+| verifier commands | `multipaz-verifier-server/.../request/verifier.kt` |
+| Generic verifier routes | `multipaz-verifier/.../server/routing.kt` |
+| Generic request/response processing | `multipaz-verifier/.../request/verifyCredentials.kt` |
+| Verifier session | `multipaz-verifier/.../session/Session.kt` |
+| Requested claims | `multipaz-verifier/.../session/RequestedDocument.kt` |
+| Application customization | `multipaz-verifier/.../customization/VerifierAssistant.kt` |
+| Presentment abstraction | `multipaz-server/.../presentment/PresentmentRecord.kt` |
+| ISO mdoc presentment | `multipaz-server/.../presentment/PresentmentRecordMdoc.kt` |
+| OpenID4VP presentment | `multipaz-server/.../presentment/PresentmentRecordOpenID4VP.kt` |
+| Top-level mdoc verification | `multipaz/.../mdoc/response/DeviceResponse.kt` |
+| Detailed mdoc verification | `multipaz/.../mdoc/response/MdocDocument.kt` |
+| ZKP abstraction | `multipaz/.../mdoc/zkp/ZkSystem.kt` |
+| Longfellow implementation | `multipaz-longfellow/` |
+
+---
+
+## 25. Troubleshooting
+
+### Signature on MSO failed
+
+Inspect `MdocDocument.verify()`.
+
+The verifier checks the COSE_Sign1 signature against the leaf certificate public key.
+
+### DocType mismatch
+
+Check:
+
+```text
+response docType
+MSO docType
+```
+
+They must match.
+
+### MSO expired
+
+Check:
+
+```text
+mso.validFrom
+mso.validUntil
+```
+
+against the verifier's `atTime`.
+
+### Device authentication failed
+
+Check:
+
+```text
+sessionTranscript
+mso.deviceKey
+deviceSignature/deviceMac
+deviceNamespaces
+```
+
+A wrong session transcript changes the authenticated data.
+
+### Digest mismatch
+
+Check:
+
+```text
+MSO.valueDigests
+IssuerSignedItem
+digestAlgorithm
+digestId
+```
+
+### Transaction hash failed
+
+Check:
+
+```text
+transaction_data_hash
+transaction_data_hash_alg
+```
+
+and compare the device-provided hash with the verifier's independently calculated hash.
+
+### Issuer is not trusted
+
+Signature verification and issuer trust are separate.
+
+Inspect:
+
+```text
+TrustManagerInterface
+getIssuerTrustManager()
+trustManager.verify(...)
+```
+
+### Longfellow proof failed
+
+First establish that normal mdoc verification succeeds:
+
+```text
+DeviceResponse.verify()
+        ↓
+MdocDocument.verify()
+        ↓
+TrustManager.verify()
+        ↓
+ZkSystem.verifyProof()
+```
+
+If the first stages succeed and `verifyProof()` fails, investigate the ZKP-specific implementation.
+
+---
+
+## 26. Relationship to Wallet and Issuer
+
+The three components have different responsibilities.
+
+```text
+Issuer
+  │
+  │ creates and signs credential
+  ▼
+Wallet
+  │
+  │ stores credential and creates presentation
+  ▼
+Verifier
+  │
+  ├── verifies mdoc integrity
+  ├── verifies issuer trust
+  └── verifies Longfellow ZKP
+```
+
+### Issuer
+
+The issuer:
+
+- owns the issuer signing key
+- constructs the credential/MSO
+- signs the MSO
+- supplies the issuer certificate chain
+
+### Wallet
+
+The wallet:
+
+- stores the credential
+- holds the device/credential private key
+- creates the presentation
+- creates device authentication
+- can generate a Longfellow ZK proof
+
+### Verifier
+
+The verifier:
+
+- creates the presentation request
+- supplies session context
+- verifies the returned presentation
+- checks issuer trust
+- verifies Longfellow proofs
+- extracts requested claims
+
+The issuer private signing key is never needed by the verifier. The wallet's device private key also remains on the wallet.
+
+---
+
+## 27. Normal mdoc vs Longfellow
+
+The most important distinction for verifier development is:
+
+```text
+NORMAL MDOC
+───────────
+COSE signature
+      ↓
+MSO
+      ↓
+DocType
+      ↓
+Validity
+      ↓
+Device Authentication
+      ↓
+Value Digests
+      ↓
+Transaction Hashes
+
+
+LONGFELLOW ZKP
+──────────────
+ZkDocument
+      ↓
+ZkSystemSpec
+      ↓
+ZkSystem
+      ↓
+verifyProof()
+      ↓
+Longfellow
+```
+
+Longfellow adds a separate proof-verification layer to the mdoc presentation architecture.
+
+---
+
+## 28. Development Workflow
+
+When modifying verifier behavior, trace from the outermost layer inward:
+
+```text
+HTTP endpoint
+    ↓
+verifier command
+    ↓
+session
+    ↓
+request/response processing
+    ↓
+PresentmentRecord
+    ↓
+DeviceResponse
+    ↓
+MdocDocument
+    ↓
+trust / ZKP
+```
+
+This makes it easier to distinguish:
+
+- protocol problems
+- session-transcript problems
+- credential-integrity problems
+- certificate-trust problems
+- transaction-binding problems
+- ZKP problems
+
+---
+
+## 29. Current Investigation Status
+
+The verifier-side architecture has been traced through:
+
+```text
+Main
+ ↓
+ApplicationExt
+ ↓
+configureVerifier
+ ↓
+request/verifier
+ ↓
+Session
+ ↓
+PresentmentRecord
+ ↓
+DeviceResponse
+ ↓
+MdocDocument
+ ↓
+TrustManager
+ ↓
+ZkSystem.verifyProof
+```
+
+The next deeper Longfellow investigation is:
+
+```text
+ZkSystemRepository
+    ↓
+ZkSystemSpec
+    ↓
+Longfellow ZkSystem implementation
+    ↓
+verifyProof()
+    ↓
+Longfellow circuit / proof verification
+```
+
+---
+
+## 30. Pending Issuer Investigation
+
+The issuer-side investigation is intentionally paused while the verifier is being documented.
+
+Pending areas:
+
+1. Wallet credential key creation / `SecureArea`
+2. Wallet → issuer credential proof
+3. DPoP key lifecycle
+4. Client authentication
+5. Issuer credential response → wallet
+6. `DocumentProvisioningHandler`
+7. `SecureArea` + `DocumentStore`
+8. Complete OID4VCI sequence
+9. mDL/MSO construction
+10. Longfellow issuer compatibility, including `keyAuthorizations`
+
+These should be documented separately once the verifier-side flow is complete.
+
+
+## Running the Verifier Locally
+
+### Prerequisites
+
+The verifier is a JVM/Kotlin server built with Gradle.
+
+Check Java and Gradle:
+
+```bash
+java -version
+./gradlew --version
+```
+
+### 1. Navigate to the repository
+
+From WSL/Linux:
+
+```bash
+cd /mnt/c/Users/harih/OneDrive/Documents/EPOCH/Longfellow-verifier
+```
+
+Verify the location:
+
+```bash
+pwd
+```
+
+### 2. Build the verifier
+
+```bash
+./gradlew multipaz-verifier-server:build
+```
+
+A successful build should end with:
+
+```text
+BUILD SUCCESSFUL
+```
+
+The first build may take longer because Gradle compiles the project and downloads dependencies.
+
+### 3. Start the verifier
+
+```bash
+./gradlew multipaz-verifier-server:run
+```
+
+Keep this terminal open while the server is running.
+
+The startup logs should show that the application has started and should indicate its configured HTTP address/port. **Do not assume a specific port from this README; use the startup output or server configuration.**
+
+### 4. Optional: use a local records server
+
+If a local records server is running on port `8004`, start the verifier with:
+
+```bash
+./gradlew multipaz-verifier-server:run \
+  --args="-param enrollment_server_url=http://localhost:8004"
+```
+
+### 5. Check that the verifier is running
+
+Open a second WSL terminal and run:
+
+```bash
+ps aux | grep java
+```
+
+Then use the HTTP port shown by the verifier startup logs when accessing its endpoints.
+
+For development, keep the verifier terminal visible so that incoming requests, verification failures, and stack traces can be inspected immediately.
+
+### 6. Source-code tracing workflow
+
+When debugging or learning the verifier, trace the request through the code in this order:
+
+```text
+Main.kt
+   ↓
+configureRouting()
+   ↓
+HTTP route
+   ↓
+Session creation
+   ↓
+Request generation
+   ↓
+Wallet presentation
+   ↓
+Presentation response handling
+   ↓
+DeviceResponse.verify()
+   ↓
+MdocDocument.verify()
+   ↓
+Issuer trust verification
+   ↓
+Longfellow ZKP verification
+   ↓
+Final verification result
+```
+
+Key source locations:
+
+```text
+multipaz-verifier-server/.../Main.kt
+multipaz-verifier/src/main/java/org/multipaz/verifier/server/routing.kt
+multipaz-verifier-server/.../request/verifier.kt
+multipaz/src/commonMain/kotlin/org/multipaz/mdoc/response/DeviceResponse.kt
+multipaz/src/commonMain/kotlin/org/multipaz/mdoc/response/MdocDocument.kt
+```
+
