@@ -1,5 +1,74 @@
 # Longfellow Verifier
 
+## Running the Verifier Locally
+
+### Prerequisites
+
+The verifier server requires a Java development environment and Gradle. Ensure that Java is installed and available on the system `PATH`.
+
+Verify the environment with:
+
+```bash
+java -version
+./gradlew --version
+```
+
+### Build
+
+From the repository root, build the verifier server with:
+
+```bash
+./gradlew multipaz-verifier-server:build
+```
+
+### Start the Server
+
+Start the verifier server using:
+
+```bash
+./gradlew multipaz-verifier-server:run
+```
+
+The server address and port are determined by the server configuration and are reported in the application startup output.
+
+### Optional Records Server Configuration
+
+When a local records server is available, its URL can be supplied as a runtime parameter:
+
+```bash
+./gradlew multipaz-verifier-server:run \
+  --args="-param enrollment_server_url=http://localhost:8004"
+```
+
+The records server must be running and accessible at the specified URL.
+
+### Development
+
+For source-level development, the main server entry point is:
+
+```text
+multipaz-verifier-server/.../Main.kt
+```
+
+The reusable verifier routing layer is located in:
+
+```text
+multipaz-verifier/src/main/java/org/multipaz/verifier/server/routing.kt
+```
+
+The verifier request and presentation handling is primarily implemented in:
+
+```text
+multipaz-verifier-server/.../request/verifier.kt
+```
+
+Standard mdoc verification is implemented in:
+
+```text
+multipaz/src/commonMain/kotlin/org/multipaz/mdoc/response/DeviceResponse.kt
+multipaz/src/commonMain/kotlin/org/multipaz/mdoc/response/MdocDocument.kt
+```
+
 ## 1. Overview
 
 This repository contains the verifier side of the digital-identity flow.
@@ -1118,7 +1187,6 @@ Value Digests
       ↓
 Transaction Hashes
 
-
 LONGFELLOW ZKP
 ──────────────
 ZkDocument
@@ -1138,208 +1206,25 @@ Longfellow adds a separate proof-verification layer to the mdoc presentation arc
 
 ## 28. Development Workflow
 
-When modifying verifier behavior, trace from the outermost layer inward:
+Verifier request processing follows the path from the HTTP endpoint through the
+session and presentation layers to credential verification:
 
 ```text
 HTTP endpoint
     ↓
-verifier command
+Verifier request/response handling
     ↓
-session
-    ↓
-request/response processing
-    ↓
-PresentmentRecord
-    ↓
-DeviceResponse
-    ↓
-MdocDocument
-    ↓
-trust / ZKP
-```
-
-This makes it easier to distinguish:
-
-- protocol problems
-- session-transcript problems
-- credential-integrity problems
-- certificate-trust problems
-- transaction-binding problems
-- ZKP problems
-
----
-
-## 29. Current Investigation Status
-
-The verifier-side architecture has been traced through:
-
-```text
-Main
- ↓
-ApplicationExt
- ↓
-configureVerifier
- ↓
-request/verifier
- ↓
 Session
- ↓
+    ↓
 PresentmentRecord
- ↓
+    ↓
 DeviceResponse
- ↓
+    ↓
 MdocDocument
- ↓
-TrustManager
- ↓
-ZkSystem.verifyProof
-```
-
-The next deeper Longfellow investigation is:
-
-```text
-ZkSystemRepository
     ↓
-ZkSystemSpec
-    ↓
-Longfellow ZkSystem implementation
-    ↓
-verifyProof()
-    ↓
-Longfellow circuit / proof verification
+Issuer trust / Longfellow ZKP
 ```
 
----
-
-## 30. Pending Issuer Investigation
-
-The issuer-side investigation is intentionally paused while the verifier is being documented.
-
-Pending areas:
-
-1. Wallet credential key creation / `SecureArea`
-2. Wallet → issuer credential proof
-3. DPoP key lifecycle
-4. Client authentication
-5. Issuer credential response → wallet
-6. `DocumentProvisioningHandler`
-7. `SecureArea` + `DocumentStore`
-8. Complete OID4VCI sequence
-9. mDL/MSO construction
-10. Longfellow issuer compatibility, including `keyAuthorizations`
-
-These should be documented separately once the verifier-side flow is complete.
-
-
-## Running the Verifier Locally
-
-### Prerequisites
-
-The verifier is a JVM/Kotlin server built with Gradle.
-
-Check Java and Gradle:
-
-```bash
-java -version
-./gradlew --version
-```
-
-### 1. Navigate to the repository
-
-From WSL/Linux:
-
-```bash
-cd /mnt/c/Users/harih/OneDrive/Documents/EPOCH/Longfellow-verifier
-```
-
-Verify the location:
-
-```bash
-pwd
-```
-
-### 2. Build the verifier
-
-```bash
-./gradlew multipaz-verifier-server:build
-```
-
-A successful build should end with:
-
-```text
-BUILD SUCCESSFUL
-```
-
-The first build may take longer because Gradle compiles the project and downloads dependencies.
-
-### 3. Start the verifier
-
-```bash
-./gradlew multipaz-verifier-server:run
-```
-
-Keep this terminal open while the server is running.
-
-The startup logs should show that the application has started and should indicate its configured HTTP address/port. **Do not assume a specific port from this README; use the startup output or server configuration.**
-
-### 4. Optional: use a local records server
-
-If a local records server is running on port `8004`, start the verifier with:
-
-```bash
-./gradlew multipaz-verifier-server:run \
-  --args="-param enrollment_server_url=http://localhost:8004"
-```
-
-### 5. Check that the verifier is running
-
-Open a second WSL terminal and run:
-
-```bash
-ps aux | grep java
-```
-
-Then use the HTTP port shown by the verifier startup logs when accessing its endpoints.
-
-For development, keep the verifier terminal visible so that incoming requests, verification failures, and stack traces can be inspected immediately.
-
-### 6. Source-code tracing workflow
-
-When debugging or learning the verifier, trace the request through the code in this order:
-
-```text
-Main.kt
-   ↓
-configureRouting()
-   ↓
-HTTP route
-   ↓
-Session creation
-   ↓
-Request generation
-   ↓
-Wallet presentation
-   ↓
-Presentation response handling
-   ↓
-DeviceResponse.verify()
-   ↓
-MdocDocument.verify()
-   ↓
-Issuer trust verification
-   ↓
-Longfellow ZKP verification
-   ↓
-Final verification result
-```
-
-Key source locations:
-
-```text
-multipaz-verifier-server/.../Main.kt
-multipaz-verifier/src/main/java/org/multipaz/verifier/server/routing.kt
-multipaz-verifier-server/.../request/verifier.kt
-multipaz/src/commonMain/kotlin/org/multipaz/mdoc/response/DeviceResponse.kt
-multipaz/src/commonMain/kotlin/org/multipaz/mdoc/response/MdocDocument.kt
-```
-
+This separation makes protocol handling, credential integrity, certificate
+trust, transaction binding, and zero-knowledge proof verification independent
+and easier to maintain.
