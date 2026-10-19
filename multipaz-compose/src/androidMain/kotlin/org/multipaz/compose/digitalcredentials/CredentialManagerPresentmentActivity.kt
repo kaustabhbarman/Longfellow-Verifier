@@ -1,5 +1,6 @@
 package org.multipaz.compose.digitalcredentials
 
+import androidx.compose.runtime.Composable
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
@@ -78,7 +79,16 @@ abstract class CredentialManagerPresentmentActivity: FragmentActivity() {
     abstract suspend fun getSettings(): Settings
 
     private val promptModel = AndroidPromptModel.Builder().apply { addCommonDialogs() }.build()
-
+    @Composable
+    protected open fun PromptDialogContent(
+        promptModel: AndroidPromptModel,
+        imageLoader: ImageLoader
+    ) {
+        PromptDialogs(
+            promptModel = promptModel,
+            imageLoader = imageLoader
+        )
+    }
     val presentmentModel = PresentmentModel()
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -99,9 +109,9 @@ abstract class CredentialManagerPresentmentActivity: FragmentActivity() {
             currentBranding.theme {
                 val coroutineScope = rememberCoroutineScope()
 
-                PromptDialogs(
+                PromptDialogContent(
                     promptModel = promptModel,
-                    imageLoader = imageLoader,
+                    imageLoader = imageLoader
                 )
 
                 // Only start presentation once we're fully faded in

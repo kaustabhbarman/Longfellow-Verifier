@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="referrer" content="unsafe-url">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="origin-trial" content="AqrF+vKVQZS3y5OJ3K2wkWZ4yEVxroNpC0oQR3kFeRmnvjBw+T9NPftQV9reLYszk8kNYyF1Zw+u3UZ9PMuxFQIAAACBeyJvcmlnaW4iOiJodHRwczovL2RpZ2l0YWwtY3JlZGVudGlhbHMuZGV2OjQ0MyIsImZlYXR1cmUiOiJXZWJJZGVudGl0eURpZ2l0YWxDcmVkZW50aWFscyIsImV4cGlyeSI6MTc0NDc2MTU5OSwiaXNTdWJkb21haW4iOnRydWV9">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>OWF Multipaz Verifier</title>
+    <link rel="icon" type="image/x-icon" href="https://fonts.gstatic.com/s/i/short-term/release/googlesymbols/fingerprint/default/24px.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-4bw+/aepP/YC94hEpVNVgiZdgIC5+VKNBQNGCHeKRQN+PtmoHDEXuppvnDJzQIu9" crossorigin="anonymous">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="verifier.js"></script>
+</head>
+<body onload="onLoad()">
+<div class="col-lg-8 mx-auto p-4 py-md-5">
+    <header class="d-flex align-items-center pb-3 mb-4 border-bottom">
+        <a href="/" class="d-flex align-items-center text-body-emphasis text-decoration-none">
+            <span class="fs-4">OWF Multipaz Verifier</span>
+        </a>
+    </header>
+
+    <main>
+        <h1 class="text-body-emphasis">Request Digital Documents</h1>
+        <p class="fs-5 col-md-8">Request a digital document such as a Mobile Driving License (mDL) or EU PID</p>
+
+        <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+            <!-- Dynamically populated, see addTab() -->
+        </ul>
+        <div class="tab-content" id="pills-tabContent">
+            <!-- Dynamically populated, see addTab() -->
+        </div>
+
+        Selected protocol for retrieval:
+
+        <div class="d-flex gap-4 flex-wrap">
+            <div class="dropdown">
+                <button class="btn btn-secondary dropdown-toggle btn-lg overflow-visible" type="button"
+                        data-bs-toggle="dropdown" aria-expanded="false" id="protocolDropdown">
+                    W3C DC API (18013-7 Annex C)
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item mdoc-only" value="w3c_dc_mdoc_api" href="#">
+                        W3C DC API (18013-7 Annex C)
+                    </a></li>
+                    <li><a class="dropdown-item" value="w3c_dc_openid4vp_24" href="#">
+                        W3C DC API (OpenID4VP Draft 24)
+                    </a></li>
+                    <li><a class="dropdown-item" value="w3c_dc_openid4vp_29" href="#">
+                        W3C DC API (OpenID4VP 1.0)
+                    </a></li>
+                    <li><a class="dropdown-item" value="w3c_dc_openid4vp_29_and_mdoc_api" href="#">
+                        W3C DC API (OpenID4VP 1.0 + Annex C)
+                    </a></li>
+                    <li><a class="dropdown-item" value="w3c_dc_openid4vp_24_and_mdoc_api" href="#">
+                        W3C DC API (OpenID4VP Draft 24 + Annex C)
+                    </a></li>
+                    <li><a class="dropdown-item" value="w3c_dc_mdoc_api_and_openid4vp_29" href="#">
+                        W3C DC API (Annex C + OpenID4VP 1.0)
+                    </a></li>
+                    <li><a class="dropdown-item" value="w3c_dc_mdoc_api_and_openid4vp_24" href="#">
+                        W3C DC API (Annex C + OpenID4VP Draft 24)
+                    </a></li>
+                    <li><a class="dropdown-item" value="uri_scheme_openid4vp_29" href="#">
+                        URI scheme (OpenID4VP 1.0)
+                    </a></li>
+                    <li><a class="dropdown-item" value="uri_scheme_annex_a" href="#">
+                        URI scheme (18013-7 Annex A)
+                    </a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="openid4vp-sign-request" class="mb-3 w-50" hidden style="flex-basis: 40%;">
+            <input type="checkbox" name="openid4vp-sign-request-input" id="openid4vp-sign-request-input" checked>
+            <label for="openid4vp-sign-request-input">Sign Request</label>
+        </div>
+        <div id="openid4vp-encrypt-response" class="mb-3 w-50" hidden style="flex-basis: 40%;">
+            <input type="checkbox" name="openid4vp-encrypt-response-input" id="openid4vp-encrypt-response-input" checked>
+            <label for="openid4vp-encrypt-response-input">Encrypt Response</label>
+        </div>
+        <div id="scheme-form" class="input-group mb-3 w-50" hidden style="width: 40%; flex-direction: column">
+            <label for="scheme-input">URI scheme for invocation</label>
+            <p>
+            <input class="form-control text-end" type="text" placeholder="scheme" id="scheme-input" value="haip-vp">
+        </div>
+
+    </main>
+
+    <section class="mt-5 pt-4 border-top" id="verification-activity-panel" aria-label="Verification activity debug">
+        <h2 class="h4 mb-3">Verification activity (debug)</h2>
+        <p class="text-body-secondary small mb-3">Structured trace of the last DC exchange: what was requested, what came back from the wallet, and how the server validated it.</p>
+        <div class="accordion" id="verificationActivityAccordion">
+            <div class="accordion-item">
+                <h3 class="accordion-header">
+                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#va-collapse-1" aria-expanded="true">1. What we asked (presentation / DC requests)</button>
+                </h3>
+                <div id="va-collapse-1" class="accordion-collapse collapse show">
+                    <div class="accordion-body p-0"><pre id="va-asked" class="small font-monospace bg-body-secondary p-3 mb-0" style="max-height: 28rem; overflow: auto;">(no exchange yet)</pre></div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h3 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#va-collapse-2">2. What we received (wallet response)</button>
+                </h3>
+                <div id="va-collapse-2" class="accordion-collapse collapse">
+                    <div class="accordion-body p-0"><pre id="va-received" class="small font-monospace bg-body-secondary p-3 mb-0" style="max-height: 28rem; overflow: auto;">—</pre></div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h3 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#va-collapse-3">3. How we verified (processing steps)</button>
+                </h3>
+                <div id="va-collapse-3" class="accordion-collapse collapse">
+                    <div class="accordion-body p-0"><pre id="va-steps" class="small font-monospace bg-body-secondary p-3 mb-0" style="max-height: 28rem; overflow: auto;">—</pre></div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h3 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#va-collapse-4">4. What we verified (checks that passed)</button>
+                </h3>
+                <div id="va-collapse-4" class="accordion-collapse collapse">
+                    <div class="accordion-body p-0"><pre id="va-checks" class="small font-monospace bg-body-secondary p-3 mb-0" style="max-height: 28rem; overflow: auto;">—</pre></div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h3 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#va-collapse-5">5. Issuer legitimacy (trust)</button>
+                </h3>
+                <div id="va-collapse-5" class="accordion-collapse collapse">
+                    <div class="accordion-body p-0"><pre id="va-issuer" class="small font-monospace bg-body-secondary p-3 mb-0" style="max-height: 28rem; overflow: auto;">—</pre></div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h3 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#va-collapse-6">6. Encryption (asymmetric / symmetric)</button>
+                </h3>
+                <div id="va-collapse-6" class="accordion-collapse collapse">
+                    <div class="accordion-body p-0"><pre id="va-crypto" class="small font-monospace bg-body-secondary p-3 mb-0" style="max-height: 28rem; overflow: auto;">—</pre></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="pt-5 my-5 text-body-secondary border-top">
+        This is a testing website that doesn't collect any data.
+        It is part of the <a href="https://github.com/openwallet-foundation-labs/identity-credential">OWF Multipaz</a> project
+        and is considered experimental software. Use at your own risk.
+        <a href="verifier/readerRootCert">Reader Root Certificate</a>.
+    </footer>
+</div>
+
+<!-- DC Result Modal -->
+<div class="modal fade" id="dcResultModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="dcResultModalLabel">Returned Credentials</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dcResultBenchmarks" class="mb-3" hidden></div>
+                <ol class="list-group">
+
+                </ol>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm" crossorigin="anonymous"></script>
+
+</body>
+</html>

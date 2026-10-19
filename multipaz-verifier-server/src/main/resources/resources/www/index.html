@@ -6,23 +6,191 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="origin-trial" content="AqrF+vKVQZS3y5OJ3K2wkWZ4yEVxroNpC0oQR3kFeRmnvjBw+T9NPftQV9reLYszk8kNYyF1Zw+u3UZ9PMuxFQIAAACBeyJvcmlnaW4iOiJodHRwczovL2RpZ2l0YWwtY3JlZGVudGlhbHMuZGV2OjQ0MyIsImZlYXR1cmUiOiJXZWJJZGVudGl0eURpZ2l0YWxDcmVkZW50aWFscyIsImV4cGlyeSI6MTc0NDc2MTU5OSwiaXNTdWJkb21haW4iOnRydWV9">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>OWF Multipaz Verifier</title>
+    <title>Longfellow Verifier | mDL</title>
     <link rel="icon" type="image/x-icon" href="https://fonts.gstatic.com/s/i/short-term/release/googlesymbols/fingerprint/default/24px.svg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-4bw+/aepP/YC94hEpVNVgiZdgIC5+VKNBQNGCHeKRQN+PtmoHDEXuppvnDJzQIu9" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="verifier.js"></script>
+
+    <style>
+        /* Persistent verifier results panel */
+        @media (min-width: 1100px) {
+            body > .col-lg-8.mx-auto {
+                width: calc(100% - 420px);
+                max-width: 1200px;
+                margin-left: 1.5rem !important;
+                margin-right: 0 !important;
+            }
+
+            #dcResultPanel {
+                position: fixed;
+                top: 1rem;
+                right: 1rem;
+                width: 370px;
+                max-height: calc(100vh - 2rem);
+                overflow-y: auto;
+                overflow-x: hidden;
+                z-index: 1020;
+            }
+
+            #dcResultPanel .card-body {
+                min-height: 180px;
+            }
+        }
+
+        @media (max-width: 1099.98px) {
+            body > .col-lg-8.mx-auto {
+                width: 100%;
+                max-width: 100%;
+                margin-left: auto !important;
+                margin-right: auto !important;
+            }
+
+            #dcResultPanel {
+                position: static;
+                width: auto;
+                max-height: none;
+                margin: 0 1rem 2rem;
+            }
+        }
+
+        #dcResultList {
+            overflow-wrap: anywhere;
+        }
+    
+        /* Custom mDL-only verifier interface */
+        #pills-tab,
+        #pills-tabContent {
+            display: none !important;
+        }
+
+        body {
+            background: #f4f7fb;
+            color: #172033;
+        }
+
+        body > .col-lg-8.mx-auto {
+            padding-top: 2rem !important;
+        }
+
+        header {
+            border-bottom-color: #dce4ef !important;
+        }
+
+        header a {
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        main > h1 {
+            font-size: clamp(1.8rem, 3vw, 2.5rem);
+            font-weight: 750;
+            letter-spacing: -0.04em;
+            margin-bottom: .65rem;
+        }
+
+        main > p {
+            color: #5c687b;
+        }
+
+        #customDcqlBuilder,
+        #dcResultPanel {
+            border: 1px solid #e0e7f0;
+            border-radius: 16px;
+            box-shadow: 0 8px 28px rgba(28, 45, 75, .06);
+            overflow: hidden;
+        }
+        @media (min-width: 1100px) {
+        #dcResultPanel {
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+        }
+        #customDcqlBuilder .card-header {
+            background: #fff;
+            border-bottom: 1px solid #e8edf4;
+            padding: 1.25rem 1.4rem;
+        }
+
+        #customDcqlBuilder .card-body {
+            background: #fff;
+            padding: 1.4rem;
+        }
+
+        #customDcqlBuilder .form-check {
+            border: 1px solid #e1e8f1;
+            border-radius: 10px;
+            padding: .7rem .8rem .7rem 2.2rem;
+            transition: border-color .15s ease,
+                        background-color .15s ease;
+        }
+
+        #customDcqlBuilder .form-check:has(input:checked) {
+            border-color: #8caef7;
+            background: #f3f7ff;
+        }
+
+        #customDcqlBuilder .form-check-input {
+            margin-left: -1.4rem;
+        }
+
+        #customDcqlBuilder .form-check-label {
+            font-weight: 500;
+        }
+
+        #customDcqlPreview {
+            background: #f7f9fc;
+            border-color: #dce4ef;
+            border-radius: 10px;
+            font-size: .82rem;
+        }
+
+        #customDcqlSubmit {
+            border-radius: 10px;
+            padding: .7rem 1.15rem;
+            font-weight: 600;
+        }
+
+        #protocolDropdown {
+            border-radius: 10px;
+        }
+
+        #dcResultPanel {
+            background: #fff;
+        }
+
+        #verification-activity-panel {
+            background: #fff;
+            border: 1px solid #e0e7f0;
+            border-radius: 14px;
+            padding: 1.25rem;
+        }
+
+        @media (max-width: 700px) {
+            #customDcqlBuilder .card-body {
+                padding: 1rem;
+            }
+
+            #verification-activity-panel {
+                padding: .85rem;
+            }
+        }
+    
+    </style>
+
 </head>
 <body onload="onLoad()">
 <div class="col-lg-8 mx-auto p-4 py-md-5">
     <header class="d-flex align-items-center pb-3 mb-4 border-bottom">
         <a href="/" class="d-flex align-items-center text-body-emphasis text-decoration-none">
-            <span class="fs-4">OWF Multipaz Verifier</span>
+            <span class="fs-4">Longfellow Verifier</span>
         </a>
     </header>
 
     <main>
-        <h1 class="text-body-emphasis">Request Digital Documents</h1>
-        <p class="fs-5 col-md-8">Request a digital document such as a Mobile Driving License (mDL) or EU PID</p>
+        <h1 class="text-body-emphasis"><i class="bi bi-person-vcard me-2 text-primary" aria-hidden="true"></i>Verify a mobile driving licence</h1>
+        <p class="fs-5 col-md-8">Choose the mDL attributes to request and optionally verify age with a privacy-preserving proof.</p>
 
         <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
             <!-- Dynamically populated, see addTab() -->
@@ -30,6 +198,138 @@
         <div class="tab-content" id="pills-tabContent">
             <!-- Dynamically populated, see addTab() -->
         </div>
+
+        <!-- Custom DCQL request builder -->
+        <section id="customDcqlBuilder" class="card my-4">
+            <div class="card-header">
+                <h2 class="h5 mb-1">Build an mDL request</h2>
+                <p class="small text-body-secondary mb-0">
+                    Choose the claims the verifier requests. Only selected claims
+                    will be included in the generated DCQL query.
+                </p>
+            </div>
+            <div class="card-body">
+                <fieldset>
+                    <legend class="h6">Select attributes to request</legend>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input custom-dcql-claim"
+                                       type="checkbox" id="customClaimGivenName"
+                                       value="given_name" checked>
+                                <label class="form-check-label" for="customClaimGivenName">
+                                    Given name
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input custom-dcql-claim"
+                                       type="checkbox" id="customClaimFamilyName"
+                                       value="family_name" checked>
+                                <label class="form-check-label" for="customClaimFamilyName">
+                                    Family name
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input custom-dcql-claim"
+                                       type="checkbox" id="customClaimBirthDate"
+                                       value="birth_date">
+                                <label class="form-check-label" for="customClaimBirthDate">
+                                    Birth date
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input custom-dcql-claim"
+                                       type="checkbox" id="customClaimPortrait"
+                                       value="portrait">
+                                <label class="form-check-label" for="customClaimPortrait">
+                                    Portrait
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input custom-dcql-claim"
+                                       type="checkbox" id="customClaimDocumentNumber"
+                                       value="document_number">
+                                <label class="form-check-label" for="customClaimDocumentNumber">
+                                    Document number
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input custom-dcql-claim"
+                                       type="checkbox" id="customClaimIssueDate"
+                                       value="issue_date">
+                                <label class="form-check-label" for="customClaimIssueDate">
+                                    Issue date
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input custom-dcql-claim"
+                                       type="checkbox" id="customClaimExpiryDate"
+                                       value="expiry_date">
+                                <label class="form-check-label" for="customClaimExpiryDate">
+                                    Expiry date
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input custom-dcql-claim"
+                                       type="checkbox" id="customClaimAgeOver18"
+                                       value="age_over_18">
+                                <label class="form-check-label" for="customClaimAgeOver18">
+                                    Age over 18
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input custom-dcql-claim"
+                                       type="checkbox" id="customClaimIssuingCountry"
+                                       value="issuing_country">
+                                <label class="form-check-label" for="customClaimIssuingCountry">
+                                    Issuing country
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox"
+                           id="customMdocUseZkp">
+                    <label class="form-check-label" for="customMdocUseZkp">
+                        Prove you’re 18 or older
+                    </label>
+                    <div class="form-text">
+                        Available only with the W3C mdoc API. Age over 18 is required;
+                        other selected attributes can be requested alongside it.
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <label for="customDcqlPreview" class="form-label fw-semibold">
+                        Request preview
+                    </label>
+                    <textarea id="customDcqlPreview"
+                              class="form-control font-monospace small"
+                              rows="12" readonly spellcheck="false"></textarea>
+                </div>
+
+                <div class="d-flex gap-2 align-items-center flex-wrap mt-3">
+                    <button type="button" class="btn btn-primary"
+                            id="customDcqlSubmit">
+                        Request selected attributes
+                    </button>
+                    <span id="customDcqlMessage"
+                          class="small text-body-secondary" role="status"
+                          aria-live="polite">
+                        Select attributes to build a request.
+                    </span>
+                </div>
+                <p class="small text-body-secondary mt-2 mb-0">
+                    Custom requests use standard mDL selective disclosure.
+                    The verifier requests only the attributes you select.
+                    Age-over-18 can use the supported zero-knowledge proof flow.
+                </p>
+            </div>
+        </section>
 
         Selected protocol for retrieval:
 
@@ -150,27 +450,20 @@
     </footer>
 </div>
 
-<!-- DC Result Modal -->
-<div class="modal fade" id="dcResultModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="dcResultModalLabel">Returned Credentials</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="dcResultBenchmarks" class="mb-3" hidden></div>
-                <ol class="list-group">
-
-                </ol>
-
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
+<!-- Persistent DC Results Panel -->
+<aside id="dcResultPanel" class="card shadow-sm" aria-label="Verification results">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h5 mb-0" id="dcResultModalLabel">Verification results</h2>
+        <span id="dcResultStatus" class="badge text-bg-secondary">Waiting</span>
     </div>
-</div>
+    <div class="card-body">
+        <p id="dcResultEmpty" class="text-body-secondary mb-0">
+            Results will appear here after a document presentation.
+        </p>
+        <div id="dcResultBenchmarks" class="mb-3" hidden></div>
+        <ol id="dcResultList" class="list-group list-group-numbered"></ol>
+    </div>
+</aside>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm" crossorigin="anonymous"></script>
 
