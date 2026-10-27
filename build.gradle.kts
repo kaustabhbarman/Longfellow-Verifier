@@ -21,13 +21,9 @@ plugins {
 
 // For `versionCode` we just use the number of commits.
 val projectVersionCode: Int by extra {
-    val stdout = ByteArrayOutputStream()
-    rootProject.exec {
+    providers.exec {
         commandLine("git", "rev-list", "HEAD", "--count")
-        standardOutput = stdout
-    }
-    @Suppress("DEPRECATION") // toString() is deprecated.
-    stdout.toString().trim().toInt()
+    }.standardOutput.asText.get().trim().toInt()
 }
 
 // The version number of the project.
@@ -39,12 +35,9 @@ val projectVersionLast = "0.99.0"
 val projectVersionNext = "0.100.0"
 
 private fun runCommand(args: List<String>): String {
-    val stdout = ByteArrayOutputStream()
-    rootProject.exec {
+    return providers.exec {
         commandLine(args)
-        standardOutput = stdout
-    }
-    return stdout.toString().trim()
+    }.standardOutput.asText.get().trim()
 }
 
 // Generate a project version meeting the requirements of Semantic Versioning 2.0.0
@@ -59,9 +52,47 @@ val projectVersionName: String by extra {
     if (projectVersionNext.isEmpty()) {
         projectVersionLast
     } else {
-        val numCommitsSinceTag = runCommand(listOf("git", "rev-list", "${projectVersionLast}..", "--count"))
-        val commitHash = runCommand(listOf("git", "rev-parse", "--short", "HEAD"))
-        projectVersionNext + "-pre.${numCommitsSinceTag}.${commitHash}"
+        val hasVersionTag = runCommand(
+            listOf(
+                "git",
+                "tag",
+                "--list",
+                projectVersionLast
+            )
+        ).isNotEmpty()
+
+        val numCommitsSinceTag =
+            if (hasVersionTag) {
+                runCommand(
+                    listOf(
+                        "git",
+                        "rev-list",
+                        "${projectVersionLast}..",
+                        "--count"
+                    )
+                )
+            } else {
+                runCommand(
+                    listOf(
+                        "git",
+                        "rev-list",
+                        "HEAD",
+                        "--count"
+                    )
+                )
+            }
+
+        val commitHash = runCommand(
+            listOf(
+                "git",
+                "rev-parse",
+                "--short",
+                "HEAD"
+            )
+        )
+
+        projectVersionNext +
+                "-pre.${numCommitsSinceTag}.${commitHash}"
     }
 }
 

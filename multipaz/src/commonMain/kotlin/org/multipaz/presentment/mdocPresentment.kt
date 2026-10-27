@@ -105,26 +105,44 @@ suspend fun mdocPresentment(
             throw PresentmentCanceledException("User canceled consent prompt")
         }
 
+        
         for (match in selection.matches) {
             match.source as CredentialMatchSourceIso18013
-            val zkRequested = match.source.docRequest.docRequestInfo?.zkRequest != null
+
+            val requestedClaims =
+                match.claims.keys.map { it as MdocRequestedClaim }
+
+            val zkRequested =
+                match.source.docRequest.docRequestInfo?.zkRequest != null
+
+            val ageClaims = requestedClaims.filter {
+                it.dataElementName == "age_over_18"
+            }
+
+            val ordinaryClaims = requestedClaims.filter {
+                it.dataElementName != "age_over_18"
+            }
 
             var zkSystemMatch: ZkSystem? = null
             var zkSystemSpec: ZkSystemSpec? = null
-            if (zkRequested) {
-                val requesterSupportedZkSpecs = match.source.docRequest.docRequestInfo.zkRequest.systemSpecs
+
+            if (zkRequested && ageClaims.isNotEmpty()) {
+                val requesterSupportedZkSpecs =
+                    match.source.docRequest.docRequestInfo.zkRequest.systemSpecs
+
                 val zkSystemRepository = source.zkSystemRepository
+
                 if (zkSystemRepository != null) {
-                    // Find the first ZK System that the requester supports and matches the document
                     for (zkSpec in requesterSupportedZkSpecs) {
                         val zkSystem = zkSystemRepository.lookup(zkSpec.system)
-                        if (zkSystem == null) {
-                            continue
-                        }
-                        val matchingZkSystemSpec = zkSystem.getMatchingSystemSpec(
-                            zkSystemSpecs = requesterSupportedZkSpecs,
-                            requestedClaims = match.claims.keys.toList()
-                        )
+                            ?: continue
+
+                        val matchingZkSystemSpec =
+                            zkSystem.getMatchingSystemSpec(
+                                zkSystemSpecs = requesterSupportedZkSpecs,
+                                requestedClaims = ageClaims
+                            )
+
                         if (matchingZkSystemSpec != null) {
                             zkSystemMatch = zkSystem
                             zkSystemSpec = matchingZkSystemSpec
@@ -134,31 +152,68 @@ suspend fun mdocPresentment(
                 }
             }
 
-            if (zkRequested && zkSystemSpec == null) {
-                Logger.w(TAG, "Reader requested ZK proof but no compatible ZkSpec was found.")
-            }
+            val canGenerateAgeZkp =
+                zkRequested &&
+                ageClaims.isNotEmpty() &&
+                zkSystemMatch != null &&
+                zkSystemSpec != null
 
-            val document = MdocDocument.fromPresentment(
-                sessionTranscript = sessionTranscript,
-                eReaderKey = eReaderKey,
-                credential = match.credential as MdocCredential,
-                requestedClaims = match.claims.keys.toList() as List<MdocRequestedClaim>,
-                deviceNamespaces = computeTransactionResponse(match),
-                errors = mapOf()
-            )
-            if (zkSystemMatch != null) {
-                val zkDocument = zkSystemMatch.generateProof(
+            if (canGenerateAgeZkp) {
+                val proofDocument = MdocDocument.fromPresentment(
+                    sessionTranscript = sessionTranscript,
+                    eReaderKey = eReaderKey,
+                    credential = match.credential as MdocCredential,
+                    requestedClaims = ageClaims,
+                    deviceNamespaces = buildDeviceNamespaces {},
+                    errors = mapOf()
+                )
+
+                val zkDocument = zkSystemMatch!!.generateProof(
                     zkSystemSpec = zkSystemSpec!!,
-                    document = document,
+                    document = proofDocument,
                     sessionTranscript = sessionTranscript
                 )
+
                 addZkDocument(zkDocument)
+
+                if (ordinaryClaims.isNotEmpty()) {
+                    val ordinaryDocument = MdocDocument.fromPresentment(
+                        sessionTranscript = sessionTranscript,
+                        eReaderKey = eReaderKey,
+                        credential = match.credential as MdocCredential,
+                        requestedClaims = ordinaryClaims,
+                        deviceNamespaces = computeTransactionResponse(match),
+                        errors = mapOf()
+                    )
+
+                    addDocument(ordinaryDocument)
+                }
             } else {
+                // Preserve the existing ordinary mdoc fallback when ZKP
+                // was not requested or no compatible age-only circuit exists.
+                val document = MdocDocument.fromPresentment(
+                    sessionTranscript = sessionTranscript,
+                    eReaderKey = eReaderKey,
+                    credential = match.credential as MdocCredential,
+                    requestedClaims = requestedClaims,
+                    deviceNamespaces = computeTransactionResponse(match),
+                    errors = mapOf()
+                )
+
                 addDocument(document)
+
+                if (zkRequested) {
+                    Logger.w(
+                        TAG,
+                        "Reader requested ZK proof, but no compatible age-only ZK spec was found."
+                    )
+                }
             }
+
             match.credential.increaseUsageCount()
             credentialsPresented.add(match.credential)
         }
+
 
         eventData = EventPresentmentData.fromPresentmentSelection(
             selection = selection,

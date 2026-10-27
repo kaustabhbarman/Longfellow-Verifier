@@ -1,5 +1,8 @@
 package org.multipaz.verifier.request
 
+
+import org.multipaz.documenttype.MdocCannedRequest
+import org.multipaz.documenttype.MdocNamespaceRequest
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -500,6 +503,8 @@ private data class DCBeginRequest(
     val host: String,
     val signRequest: Boolean,
     val encryptResponse: Boolean,
+    val customMdocClaims: List<String> = emptyList(),
+    val customMdocUseZkp: Boolean = false,
 )
 
 @Serializable
@@ -644,6 +649,55 @@ private fun lookupWellknownRequest(
     }
 }
 
+private fun buildCustomMdlRequest(
+    docType: String,
+    claims: List<String>,
+    useZkp: Boolean
+): SingleDocumentCannedRequest {
+    if (docType != DrivingLicense.MDL_DOCTYPE) {
+        throw InvalidRequestException("Unsupported document type")
+    }
+
+    val uniqueClaims = claims.distinct()
+    if (uniqueClaims.isEmpty() || uniqueClaims.size != claims.size) {
+        throw InvalidRequestException("Select at least one unique claim")
+    }
+
+    
+
+    val documentType = documentTypeRepo.getDocumentTypeForMdoc(docType)
+        ?: throw InvalidRequestException("Unknown mDL document type")
+
+    val mdocType = documentType.mdocDocumentType
+        ?: throw InvalidRequestException("mDL metadata is unavailable")
+
+    val namespace = DrivingLicense.MDL_NAMESPACE
+    val namespaceMetadata = mdocType.namespaces[namespace]
+        ?: throw InvalidRequestException("mDL namespace is unavailable")
+
+    val requestedElements = uniqueClaims.associate { claim ->
+        val element = namespaceMetadata.dataElements[claim]
+            ?: throw InvalidRequestException("Unsupported mDL claim: $claim")
+        element to false
+    }
+
+    return SingleDocumentCannedRequest(
+        id = "custom_mdl",
+        displayName = "Custom mDL request",
+        mdocRequest = MdocCannedRequest(
+            docType = docType,
+            useZkp = useZkp,
+            namespacesToRequest = listOf(
+                MdocNamespaceRequest(
+                    namespace = namespace,
+                    dataElementsToRequest = requestedElements
+                )
+            )
+        ),
+        jsonRequest = null
+    )
+}
+
 private suspend fun handleDcBegin(
     call: ApplicationCall,
     requestData: ByteArray
@@ -723,6 +777,37 @@ private suspend fun handleDcBegin(
                     readerAuthKey,
                     request.signRequest,
                     request.encryptResponse,
+                )
+            } else if (request.customMdocClaims.isNotEmpty()) {
+                if (request.protocol != "w3c_dc_mdoc_api" ||
+                    request.format != "mdoc" ||
+                    request.rawDcql.isNotEmpty() ||
+                    request.multiDocumentRequestId.isNotEmpty()
+                ) {
+                    throw InvalidRequestException(
+                        "Custom mDL claims are supported only with the W3C mdoc API"
+                    )
+                }
+
+                calcDcRequestNew(
+                    exchangeProtocols,
+                    sessionId,
+                    documentTypeRepo,
+                    request.format,
+                    session,
+                    buildCustomMdlRequest(
+                        request.docType,
+                        request.customMdocClaims,
+                        request.customMdocUseZkp
+                    ),
+                    session.protocol,
+                    session.nonce,
+                    session.origin,
+                    session.encryptionKey,
+                    session.encryptionKey.publicKey as EcPublicKeyDoubleCoordinate,
+                    readerAuthKey,
+                    request.signRequest,
+                    request.encryptResponse
                 )
             } else if (request.rawDcql.isNotEmpty()) {
                 calcDcRequestNewRawDcql(
