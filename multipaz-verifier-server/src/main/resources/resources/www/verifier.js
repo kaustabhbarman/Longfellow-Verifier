@@ -69,13 +69,26 @@ async function onLoad() {
     var active = true
     for (const dtwr of response.documentTypesWithRequests) {
       if (dtwr.mdocDocType != null) {
-          // JSON uses supportsMdoc / supportsVc (see SampleRequest in verifier.kt)
           const mdocSamples = dtwr.sampleRequests.filter(sr => sr.supportsMdoc)
           addTab(dtwr.documentDisplayName + " (mdoc)", "mdoc", dtwr.mdocDocType, mdocSamples, active)
           active = false
       }
+      if (dtwr.vcVct != null) {
+          const vcSamples = dtwr.sampleRequests.filter(sr => sr.supportsVc)
+          addTab(
+            dtwr.vcVct === 'urn:eudi:pid:1'
+                ? "Personal ID (SD-JWT)"
+                : dtwr.documentDisplayName + " (VC)",
+            "vc",
+            dtwr.vcVct,
+            vcSamples,
+            active
+        )
+          active = false
+      }
     }
     initializeCustomDcqlBuilder()
+    initializePidDcqlBuilder()
 }
 
 
@@ -273,55 +286,125 @@ function initializeCustomDcqlBuilder() {
 }
 
 function addTab(tabName, mdocOrVc, docTypeOrVct, sampleRequests, active) {
-    // For the tab ID to be queryable using jQuery, we need to mask out special characters. Replace
-    // anything that isn't a letter or number.
-    var escapedDocTypeOrVct = docTypeOrVct.replace(/[^a-zA-Z0-9]/g,'_');
+    var escapedDocTypeOrVct = docTypeOrVct.replace(/[^a-zA-Z0-9]/g, '_')
     var tabId = mdocOrVc + '-' + escapedDocTypeOrVct
     var activeStr = active ? "active" : ""
+    const isPid = docTypeOrVct === 'eu.europa.ec.eudi.pid.1' ||
+                  docTypeOrVct === 'urn:eudi:pid:1'
+
     $('<li class="nav-item" role="presentation">' +
-    '<button class="nav-link ' + activeStr + '" data-bs-toggle="pill" id="pills-tab-' + tabId + '" data-bs-target="#pills-' + tabId + '" type="button" role="tab" aria-controls="pills-home" aria-selected="true">' +
-      tabName +
-    '</button>' +
-    '</li>')
-    .appendTo('#pills-tab')
+        '<button class="nav-link ' + activeStr + '" data-bs-toggle="pill" id="pills-tab-' + tabId + '" data-bs-target="#pills-' + tabId + '" type="button" role="tab" aria-controls="pills-home" aria-selected="true">' +
+        tabName +
+        '</button>' +
+        '</li>').appendTo('#pills-tab')
 
     var str = '<div class="tab-pane fade show ' + activeStr + '" '
     str += 'id="pills-' + tabId + '" role="tabpanel" '
     str += 'aria-labelledby="pills-tab-' + tabId + '" tabindex="0"> '
-    str += '  <div class="d-grid gap-2 mx-auto"> '
-    for (sr of sampleRequests) {
-        str += '    <button type="button" class="btn btn-primary btn-lg" '
-        str += 'onclick="requestDocument(\'' + mdocOrVc + '\', \'' + docTypeOrVct + '\', \'' + sr.id + '\', null, null)" >'
-        str += sr.displayName
-        str += '    </button> '
-    }
-    str += '  </div> '
-    str += '</div> '
 
+    if (!isPid && docTypeOrVct !== 'org.iso.18013.5.1.mDL') {
+        str += '  <div class="d-grid gap-2 mx-auto"> '
+        for (const sr of sampleRequests) {
+            str += '    <button type="button" class="btn btn-primary btn-lg" '
+            str += 'onclick="requestDocument(\'' + mdocOrVc + '\', \'' + docTypeOrVct + '\', \'' + sr.id + '\', null, null)" >'
+            str += sr.displayName
+            str += '    </button> '
+        }
+        str += '  </div> '
+    }
+
+    str += '</div> '
     $(str).appendTo('#pills-tabContent')
 
-    // When one of the document tabs is selected, update the available protocol dropdown options.
-    $('#pills-tab-' + tabId).on('shown.bs.tab', function (e) {
-        updateProtocolOptions(mdocOrVc);
-    });
+    $('#pills-tab-' + tabId).on('shown.bs.tab', function () {
+        updateProtocolOptions(mdocOrVc, docTypeOrVct)
+
+        const heading = document.getElementById('verifierHeading')
+        const subtitle = document.getElementById('verifierSubtitle')
+        const mdocBuilder = document.getElementById('customDcqlBuilder')
+        const pidBuilder = document.getElementById('pidDcqlBuilder')
+
+        if (isPid) {
+            heading.innerHTML = '<i class="bi bi-person-vcard me-2 text-primary" aria-hidden="true"></i>Verify a Personal ID'
+
+            subtitle.textContent = mdocOrVc === 'mdoc'
+                ? 'Choose the PID mdoc data elements to request from the holder.'
+                : 'Choose the PID SD-JWT VC claims to request from the holder.'
+
+            const pidBuilderHeading = document.getElementById('pidBuilderHeading')
+            const pidBuilderDescription = document.getElementById('pidBuilderDescription')
+
+            if (mdocOrVc === 'mdoc') {
+                pidBuilderHeading.textContent = 'Build a PID mdoc request'
+                pidBuilderDescription.textContent =
+                    'Select the PID mdoc data elements to request.'
+            } else {
+                pidBuilderHeading.textContent = 'Build a PID SD-JWT request'
+                pidBuilderDescription.textContent =
+                    'Select the PID SD-JWT VC claims to request.'
+            }
+        } else {
+            heading.innerHTML = '<i class="bi bi-person-vcard me-2 text-primary" aria-hidden="true"></i>Verify a mobile driving licence'
+            subtitle.textContent = 'Choose the mDL attributes to request and optionally verify age with a privacy-preserving proof.'
+        }
+
+        if (mdocBuilder) mdocBuilder.hidden = isPid
+        if (pidBuilder) pidBuilder.hidden = !isPid
+    })
 }
 
-function updateProtocolOptions(_mdocOrVc) {
+function updateProtocolOptions(mdocOrVc, docTypeOrVct) {
     const protocolDropdown = document.getElementById('protocolDropdown')
-    const mdocOnly = document.querySelectorAll('.mdoc-only');
+    const isVc = mdocOrVc === 'vc'
+    const isPid = docTypeOrVct === 'eu.europa.ec.eudi.pid.1' ||
+                  docTypeOrVct === 'urn:eudi:pid:1'
 
-    // This verifier only exposes ISO mDL (mdoc) flows.
-    mdocOnly.forEach(option => {
-        option.classList.remove('disabled');
-        option.removeAttribute('disabled');
-        if (preferredProtocol == option.getAttribute('value')) {
-            selectedProtocol = preferredProtocol
-            protocolDropdown.innerHTML = option.innerHTML;
-        }
-    });
+    const vcProtocols = [
+        'w3c_dc_openid4vp_24',
+        'w3c_dc_openid4vp_29',
+        'uri_scheme_openid4vp_29'
+    ]
 
-    const openid4vp_sign_request_checkbox = document.getElementById("openid4vp-sign-request")
-    openid4vp_sign_request_checkbox.hidden = (
+    const pidProtocols = isVc
+        ? ['w3c_dc_openid4vp_24', 'w3c_dc_openid4vp_29']
+        : ['w3c_dc_mdoc_api', 'w3c_dc_openid4vp_24', 'w3c_dc_openid4vp_29']
+
+    const options = Array.from(
+        document.querySelectorAll('.dropdown-menu a.dropdown-item')
+    )
+
+    options.forEach(option => {
+        const value = option.getAttribute('value')
+        const supported = isPid
+            ? pidProtocols.includes(value)
+            : (!isVc || vcProtocols.includes(value))
+        option.parentElement.hidden = !supported
+    })
+
+    const isSupported = protocol =>
+        isPid
+            ? pidProtocols.includes(protocol)
+            : (!isVc || vcProtocols.includes(protocol))
+
+    if (!isSupported(preferredProtocol)) {
+        selectedProtocol = isPid && !isVc
+            ? 'w3c_dc_mdoc_api'
+            : 'w3c_dc_openid4vp_24'
+    } else {
+        selectedProtocol = preferredProtocol
+    }
+
+    const selectedOption = options.find(
+        option => option.getAttribute('value') === selectedProtocol
+    )
+
+    if (selectedOption) {
+        protocolDropdown.innerHTML = selectedOption.innerHTML
+    }
+
+    const openid4vpSignRequestCheckbox =
+        document.getElementById("openid4vp-sign-request")
+    openid4vpSignRequestCheckbox.hidden = (
         selectedProtocol !== 'w3c_dc_openid4vp_24' &&
         selectedProtocol !== 'w3c_dc_openid4vp_29' &&
         selectedProtocol !== 'w3c_dc_openid4vp_29_and_mdoc_api' &&
@@ -329,8 +412,10 @@ function updateProtocolOptions(_mdocOrVc) {
         selectedProtocol !== 'w3c_dc_mdoc_api_and_openid4vp_29' &&
         selectedProtocol !== 'w3c_dc_mdoc_api_and_openid4vp_24'
     )
-    const openid4vp_encrypt_response_checkbox = document.getElementById("openid4vp-encrypt-response")
-    openid4vp_encrypt_response_checkbox.hidden = (
+
+    const openid4vpEncryptResponseCheckbox =
+        document.getElementById("openid4vp-encrypt-response")
+    openid4vpEncryptResponseCheckbox.hidden = (
         selectedProtocol !== 'w3c_dc_openid4vp_24' &&
         selectedProtocol !== 'w3c_dc_openid4vp_29' &&
         selectedProtocol !== 'w3c_dc_openid4vp_29_and_mdoc_api' &&
@@ -339,6 +424,9 @@ function updateProtocolOptions(_mdocOrVc) {
         selectedProtocol !== 'w3c_dc_mdoc_api_and_openid4vp_24' &&
         selectedProtocol !== 'uri_scheme_openid4vp_29'
     )
+
+    const scheme = document.getElementById("scheme-form")
+    scheme.hidden = selectedProtocol !== 'uri_scheme_openid4vp_29'
 }
 
 async function onLoadRedirect() {
@@ -462,6 +550,199 @@ async function requestDocument(format, docType, requestId, rawDcql, multiDocumen
             alert("Something went wrong: " + err)
         }
     }
+}
+
+
+function initializePidDcqlBuilder() {
+    const builder = document.getElementById('pidDcqlBuilder')
+    if (!builder) return
+
+    const preview = document.getElementById('pidDcqlPreview')
+    const submit = document.getElementById('pidDcqlSubmit')
+    const message = document.getElementById('pidDcqlMessage')
+    const protocolDropdown = document.getElementById('protocolDropdown')
+    const claimCheckboxes = Array.from(
+        builder.querySelectorAll('.pid-dcql-claim')
+    )
+
+    function activeCredential() {
+        const activeTab = document.querySelector('#pills-tab .nav-link.active')
+        if (!activeTab) return null
+
+        const id = activeTab.id
+        if (id === 'pills-tab-mdoc-eu_europa_ec_eudi_pid_1') {
+            return { format: 'mdoc', identifier: 'eu.europa.ec.eudi.pid.1' }
+        }
+        if (id === 'pills-tab-vc-urn_eudi_pid_1') {
+            return { format: 'vc', identifier: 'urn:eudi:pid:1' }
+        }
+        return null
+    }
+
+    function selectedClaims() {
+        return claimCheckboxes.filter(checkbox => checkbox.checked)
+    }
+
+    function selectedVcPaths() {
+        const paths = selectedClaims().map(checkbox =>
+            JSON.parse(checkbox.dataset.vcPath)
+        )
+
+        // If a complete structured object is selected, do not also request
+        // one of its nested members as a separate claim.
+        return paths.filter(path => !paths.some(other =>
+            other.length < path.length &&
+            other.every((part, index) => part === path[index])
+        ))
+    }
+
+    function buildPidDcql(credential) {
+        const claims = credential.format === 'mdoc'
+            ? selectedClaims().map(checkbox => ({
+                path: ['eu.europa.ec.eudi.pid.1', checkbox.dataset.mdocClaim]
+            }))
+            : selectedVcPaths().map(path => ({ path }))
+
+        return {
+            credentials: [{
+                id: 'pid',
+                format: credential.format === 'mdoc' ? 'mso_mdoc' : 'dc+sd-jwt',
+                meta: credential.format === 'mdoc'
+                    ? { doctype_value: 'eu.europa.ec.eudi.pid.1' }
+                    : { vct_values: ['urn:eudi:pid:1'] },
+                claims
+            }]
+        }
+    }
+
+    function protocolSupported(credential) {
+        if (!credential) return false
+        if (credential.format === 'mdoc' &&
+            selectedProtocol === 'w3c_dc_mdoc_api') return true
+
+        return selectedProtocol === 'w3c_dc_openid4vp_24' ||
+               selectedProtocol === 'w3c_dc_openid4vp_29'
+    }
+
+    function updatePreview() {
+        const credential = activeCredential()
+        const claims = selectedClaims()
+
+        preview.value = credential
+            ? JSON.stringify(buildPidDcql(credential), null, 2)
+            : ''
+
+        if (!credential) {
+            message.textContent = 'Select a PID tab to build a request.'
+        } else if (claims.length === 0) {
+            message.textContent = 'Select at least one PID attribute.'
+        } else if (!protocolSupported(credential)) {
+            message.textContent = credential.format === 'vc'
+                ? 'Choose OpenID4VP Draft 24 or OpenID4VP 1.0 for PID SD-JWT VC.'
+                : 'Choose the W3C mdoc API or a supported OpenID4VP protocol.'
+        } else {
+            message.textContent = claims.length + ' PID attribute(s) selected.'
+        }
+
+        submit.disabled =
+            !credential || claims.length === 0 || !protocolSupported(credential)
+    }
+
+    claimCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updatePreview)
+    })
+
+    protocolDropdown.addEventListener('custom-protocol-changed', updatePreview)
+
+    document.querySelectorAll('#pills-tab .nav-link').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', updatePreview)
+    })
+
+    submit.addEventListener('click', async function () {
+        const credential = activeCredential()
+        const claims = selectedClaims()
+
+        if (!credential || claims.length === 0 || !protocolSupported(credential)) {
+            updatePreview()
+            return
+        }
+
+        submit.disabled = true
+        message.textContent = 'Creating PID request…'
+
+        try {
+            const requestPayload = {
+                protocol: selectedProtocol,
+                origin: location.origin,
+                host: location.host,
+                signRequest: document.getElementById(
+                    'openid4vp-sign-request-input'
+                ).checked,
+                encryptResponse: document.getElementById(
+                    'openid4vp-encrypt-response-input'
+                ).checked
+            }
+
+            const dcql = buildPidDcql(credential)
+            let response
+
+            if (credential.format === 'mdoc' &&
+                selectedProtocol === 'w3c_dc_mdoc_api') {
+                response = await callServer('dcBegin', {
+                    ...requestPayload,
+                    format: 'mdoc',
+                    docType: 'eu.europa.ec.eudi.pid.1',
+                    requestId: '',
+                    rawDcql: '',
+                    multiDocumentRequestId: '',
+                    customMdocClaims: claims.map(
+                        checkbox => checkbox.dataset.mdocClaim
+                    ),
+                    customMdocUseZkp: false
+                })
+            } else {
+                response = await callServer('dcBeginRawDcql', {
+                    ...requestPayload,
+                    rawDcql: JSON.stringify(dcql)
+                })
+            }
+
+            if (response.error != null) {
+                throw new Error(response.error)
+            }
+
+            if (!response.sessionId || !response.dcRequestString ||
+                !response.dcRequestProtocol) {
+                throw new Error('The server returned an incomplete PID request.')
+            }
+
+            message.textContent =
+                'PID request sent to the wallet. Waiting for presentation…'
+
+            dcRequestCredential(
+                response.sessionId,
+                response.dcRequestProtocol,
+                JSON.parse(response.dcRequestString),
+                response.dcRequestProtocol2,
+                response.dcRequestString2 != null
+                    ? JSON.parse(response.dcRequestString2)
+                    : null,
+                (text, type) => {
+                    message.textContent = text
+                    message.classList.toggle('text-danger', type === 'error')
+                    message.classList.toggle('text-success', type === 'success')
+                    message.classList.toggle('text-body-secondary', type === 'waiting')
+                }
+            )
+        } catch (error) {
+            message.textContent = 'PID request failed: ' + error.message
+            message.classList.add('text-danger')
+        } finally {
+            updatePreview()
+        }
+    })
+
+    updatePreview()
 }
 
 async function dcRequestCredential(
