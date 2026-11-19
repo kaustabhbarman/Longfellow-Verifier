@@ -60,6 +60,7 @@ import org.multipaz.crypto.X509Cert
 import org.multipaz.documenttype.DocumentTypeRepository
 import org.multipaz.documenttype.SingleDocumentCannedRequest
 import org.multipaz.documenttype.knowntypes.DrivingLicense
+import org.multipaz.documenttype.knowntypes.EUPersonalID
 import org.multipaz.documenttype.knowntypes.wellKnownMultipleDocumentRequests
 import org.multipaz.mdoc.connectionmethod.MdocConnectionMethodHttp
 import org.multipaz.mdoc.engagement.DeviceEngagement
@@ -556,6 +557,7 @@ private val verifierSessionTableSpec = StorageTableSpec(
 val documentTypeRepo: DocumentTypeRepository by lazy {
     DocumentTypeRepository().apply {
         addDocumentType(DrivingLicense.getDocumentType())
+        addDocumentType(EUPersonalID.getDocumentType())
     }
 }
 
@@ -604,9 +606,6 @@ private suspend fun handleGetAvailableRequests(
                     // Not supported
                     continue
                 }
-                if (sr.mdocRequest == null) {
-                    continue
-                }
                 sampleRequests.add(SampleRequest(
                     sr.id,
                     sr.displayName,
@@ -649,13 +648,19 @@ private fun lookupWellknownRequest(
     }
 }
 
-private fun buildCustomMdlRequest(
+private fun buildCustomMdocRequest(
     docType: String,
     claims: List<String>,
     useZkp: Boolean
 ): SingleDocumentCannedRequest {
-    if (docType != DrivingLicense.MDL_DOCTYPE) {
-        throw InvalidRequestException("Unsupported document type")
+    val namespace = when (docType) {
+        DrivingLicense.MDL_DOCTYPE -> DrivingLicense.MDL_NAMESPACE
+        EUPersonalID.EUPID_DOCTYPE -> EUPersonalID.EUPID_NAMESPACE
+        else -> throw InvalidRequestException("Unsupported mdoc document type")
+    }
+
+    if (useZkp && docType != DrivingLicense.MDL_DOCTYPE) {
+        throw InvalidRequestException("ZKP is currently supported only for mDL")
     }
 
     val uniqueClaims = claims.distinct()
@@ -663,27 +668,22 @@ private fun buildCustomMdlRequest(
         throw InvalidRequestException("Select at least one unique claim")
     }
 
-    
-
     val documentType = documentTypeRepo.getDocumentTypeForMdoc(docType)
-        ?: throw InvalidRequestException("Unknown mDL document type")
-
+        ?: throw InvalidRequestException("Unknown mdoc document type")
     val mdocType = documentType.mdocDocumentType
-        ?: throw InvalidRequestException("mDL metadata is unavailable")
-
-    val namespace = DrivingLicense.MDL_NAMESPACE
+        ?: throw InvalidRequestException("Mdoc metadata is unavailable")
     val namespaceMetadata = mdocType.namespaces[namespace]
-        ?: throw InvalidRequestException("mDL namespace is unavailable")
+        ?: throw InvalidRequestException("Mdoc namespace is unavailable")
 
     val requestedElements = uniqueClaims.associate { claim ->
         val element = namespaceMetadata.dataElements[claim]
-            ?: throw InvalidRequestException("Unsupported mDL claim: $claim")
+            ?: throw InvalidRequestException("Unsupported mdoc claim: $claim")
         element to false
     }
 
     return SingleDocumentCannedRequest(
-        id = "custom_mdl",
-        displayName = "Custom mDL request",
+        id = "custom_mdoc",
+        displayName = "Custom mdoc request",
         mdocRequest = MdocCannedRequest(
             docType = docType,
             useZkp = useZkp,
@@ -785,7 +785,7 @@ private suspend fun handleDcBegin(
                     request.multiDocumentRequestId.isNotEmpty()
                 ) {
                     throw InvalidRequestException(
-                        "Custom mDL claims are supported only with the W3C mdoc API"
+                        "Custom mdoc claims are supported only with the W3C mdoc API"
                     )
                 }
 
@@ -795,7 +795,7 @@ private suspend fun handleDcBegin(
                     documentTypeRepo,
                     request.format,
                     session,
-                    buildCustomMdlRequest(
+                    buildCustomMdocRequest(
                         request.docType,
                         request.customMdocClaims,
                         request.customMdocUseZkp
