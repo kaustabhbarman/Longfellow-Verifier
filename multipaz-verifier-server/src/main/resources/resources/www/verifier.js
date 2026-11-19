@@ -584,12 +584,10 @@ function initializePidDcqlBuilder() {
     }
 
     function selectedVcPaths() {
-        const paths = selectedClaims().map(checkbox =>
-            JSON.parse(checkbox.dataset.vcPath)
-        )
+        const paths = selectedClaims()
+            .filter(checkbox => checkbox.dataset.vcPath)
+            .map(checkbox => JSON.parse(checkbox.dataset.vcPath))
 
-        // If a complete structured object is selected, do not also request
-        // one of its nested members as a separate claim.
         return paths.filter(path => !paths.some(other =>
             other.length < path.length &&
             other.every((part, index) => part === path[index])

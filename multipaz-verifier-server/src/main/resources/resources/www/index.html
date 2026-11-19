@@ -336,61 +336,63 @@
             <div class="card-body">
                 <fieldset>
                     <legend class="h6">Select PID attributes to request</legend>
+
                     <h3 class="h6 mt-3">Identity</h3>
                     <div class="row">
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_given_name"
-                                       data-mdoc-claim="given_name"
-                                       data-vc-path='["given_name"]' checked>
+                                    id="pidClaim_given_name"
+                                    data-mdoc-claim="given_name"
+                                    data-vc-path='["given_name"]' checked>
                                 <label class="form-check-label" for="pidClaim_given_name">
-                                    Given name
+                                    First name
                                 </label>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_family_name"
-                                       data-mdoc-claim="family_name"
-                                       data-vc-path='["family_name"]' checked>
+                                    id="pidClaim_family_name"
+                                    data-mdoc-claim="family_name"
+                                    data-vc-path='["family_name"]' checked>
                                 <label class="form-check-label" for="pidClaim_family_name">
-                                    Family name
+                                    Last name
                                 </label>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_birth_date"
-                                       data-mdoc-claim="birth_date"
-                                       data-vc-path='["birthdate"]' checked>
+                                    id="pidClaim_birth_date"
+                                    data-mdoc-claim="birth_date"
+                                    data-vc-path='["birthdate"]' checked>
                                 <label class="form-check-label" for="pidClaim_birth_date">
-                                    Birth date
+                                    Date of birth
                                 </label>
                             </div>
                         </div>
+                    </div>
+
+                    <h3 class="h6 mt-3">Personal ID Information</h3>
+                    <div class="row">
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_personal_administrative_number"
-                                       data-mdoc-claim="personal_administrative_number"
-                                       data-vc-path='["personal_administrative_number"]'>
+                                    id="pidClaim_personal_administrative_number"
+                                    data-mdoc-claim="personal_administrative_number"
+                                    data-vc-path='["personal_administrative_number"]'>
                                 <label class="form-check-label" for="pidClaim_personal_administrative_number">
                                     Personal administrative number
                                 </label>
                             </div>
                         </div>
-                    </div>
-                    <h3 class="h6 mt-3">Birth details</h3>
-                    <div class="row">
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_family_name_birth"
-                                       data-mdoc-claim="family_name_birth"
-                                       data-vc-path='["birth_family_name"]'>
+                                    id="pidClaim_family_name_birth"
+                                    data-mdoc-claim="family_name_birth"
+                                    data-vc-path='["birth_family_name"]'>
                                 <label class="form-check-label" for="pidClaim_family_name_birth">
                                     Family name at birth
                                 </label>
@@ -399,20 +401,19 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_given_name_birth"
-                                       data-mdoc-claim="given_name_birth"
-                                       data-vc-path='["birth_given_name"]'>
+                                    id="pidClaim_given_name_birth"
+                                    data-mdoc-claim="given_name_birth"
+                                    data-vc-path='["birth_given_name"]'>
                                 <label class="form-check-label" for="pidClaim_given_name_birth">
-                                    Given name at birth
+                                    First name at birth
                                 </label>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_birth_place"
-                                       data-mdoc-claim="birth_place"
-                                       data-vc-path='["place_of_birth"]' checked>
+                                    id="pidClaim_birth_place"
+                                    data-mdoc-claim="birth_place">
                                 <label class="form-check-label" for="pidClaim_birth_place">
                                     Place of birth
                                 </label>
@@ -421,9 +422,9 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_birth_country"
-                                       data-mdoc-claim="birth_country"
-                                       data-vc-path='["place_of_birth","country"]'>
+                                    id="pidClaim_birth_country"
+                                    data-mdoc-claim="birth_country"
+                                    data-vc-path='["place_of_birth","country"]'>
                                 <label class="form-check-label" for="pidClaim_birth_country">
                                     Country of birth
                                 </label>
@@ -432,45 +433,35 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_birth_state"
-                                       data-mdoc-claim="birth_state"
-                                       data-vc-path='["place_of_birth","region"]'>
+                                    id="pidClaim_birth_state"
+                                    data-mdoc-claim="birth_state"
+                                    data-vc-path='["place_of_birth","region"]'>
                                 <label class="form-check-label" for="pidClaim_birth_state">
-                                    State or region of birth
+                                    State/region of birth
                                 </label>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_birth_city"
-                                       data-mdoc-claim="birth_city"
-                                       data-vc-path='["place_of_birth","locality"]'>
+                                    id="pidClaim_birth_city"
+                                    data-mdoc-claim="birth_city"
+                                    data-vc-path='["place_of_birth","locality"]'>
                                 <label class="form-check-label" for="pidClaim_birth_city">
                                     City of birth
                                 </label>
                             </div>
                         </div>
                     </div>
+
                     <h3 class="h6 mt-3">Address</h3>
                     <div class="row">
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_resident_address"
-                                       data-mdoc-claim="resident_address"
-                                       data-vc-path='["address","formatted"]'>
-                                <label class="form-check-label" for="pidClaim_resident_address">
-                                    Formatted address
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="form-check mb-2">
-                                <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_resident_country"
-                                       data-mdoc-claim="resident_country"
-                                       data-vc-path='["address","country"]'>
+                                    id="pidClaim_resident_country"
+                                    data-mdoc-claim="resident_country"
+                                    data-vc-path='["address","country"]'>
                                 <label class="form-check-label" for="pidClaim_resident_country">
                                     Country of residence
                                 </label>
@@ -479,20 +470,20 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_resident_state"
-                                       data-mdoc-claim="resident_state"
-                                       data-vc-path='["address","region"]'>
+                                    id="pidClaim_resident_state"
+                                    data-mdoc-claim="resident_state"
+                                    data-vc-path='["address","region"]'>
                                 <label class="form-check-label" for="pidClaim_resident_state">
-                                    State or region
+                                    State/region
                                 </label>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_resident_city"
-                                       data-mdoc-claim="resident_city"
-                                       data-vc-path='["address","locality"]'>
+                                    id="pidClaim_resident_city"
+                                    data-mdoc-claim="resident_city"
+                                    data-vc-path='["address","locality"]'>
                                 <label class="form-check-label" for="pidClaim_resident_city">
                                     City
                                 </label>
@@ -501,9 +492,9 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_resident_postal_code"
-                                       data-mdoc-claim="resident_postal_code"
-                                       data-vc-path='["address","postal_code"]'>
+                                    id="pidClaim_resident_postal_code"
+                                    data-mdoc-claim="resident_postal_code"
+                                    data-vc-path='["address","postal_code"]'>
                                 <label class="form-check-label" for="pidClaim_resident_postal_code">
                                     Postal code
                                 </label>
@@ -512,9 +503,9 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_resident_street"
-                                       data-mdoc-claim="resident_street"
-                                       data-vc-path='["address","street_address"]'>
+                                    id="pidClaim_resident_street"
+                                    data-mdoc-claim="resident_street"
+                                    data-vc-path='["address","street_address"]'>
                                 <label class="form-check-label" for="pidClaim_resident_street">
                                     Street
                                 </label>
@@ -523,59 +514,57 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_resident_house_number"
-                                       data-mdoc-claim="resident_house_number"
-                                       data-vc-path='["address","house_number"]'>
+                                    id="pidClaim_resident_house_number"
+                                    data-mdoc-claim="resident_house_number"
+                                    data-vc-path='["address","house_number"]'>
                                 <label class="form-check-label" for="pidClaim_resident_house_number">
                                     House number
                                 </label>
                             </div>
                         </div>
                     </div>
-                    <h3 class="h6 mt-3">Personal details</h3>
+
+                    <h3 class="h6 mt-3">Additional Personal Information</h3>
                     <div class="row">
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_sex"
-                                       data-mdoc-claim="sex"
-                                       data-vc-path='["sex"]'>
+                                    id="pidClaim_sex"
+                                    data-mdoc-claim="sex"
+                                    data-vc-path='["sex"]'>
                                 <label class="form-check-label" for="pidClaim_sex">
-                                    Sex (ISO/IEC 5218)
+                                    Sex
                                 </label>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_nationality"
-                                       data-mdoc-claim="nationality"
-                                       data-vc-path='["nationalities"]' checked>
+                                    id="pidClaim_nationality"
+                                    data-mdoc-claim="nationality"
+                                    data-vc-path='["nationalities"]' checked>
                                 <label class="form-check-label" for="pidClaim_nationality">
-                                    Nationality
+                                    Nationality (country code)
                                 </label>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_portrait"
-                                       data-mdoc-claim="portrait"
-                                       data-vc-path='["picture"]'>
+                                    id="pidClaim_portrait"
+                                    data-mdoc-claim="portrait"
+                                    data-vc-path='["picture"]'>
                                 <label class="form-check-label" for="pidClaim_portrait">
-                                    Portrait / photo
+                                    Photo of holder
                                 </label>
                             </div>
                         </div>
-                    </div>
-                    <h3 class="h6 mt-3">Document details</h3>
-                    <div class="row">
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_issuance_date"
-                                       data-mdoc-claim="issuance_date"
-                                       data-vc-path='["date_of_issuance"]'>
+                                    id="pidClaim_issuance_date"
+                                    data-mdoc-claim="issuance_date"
+                                    data-vc-path='["date_of_issuance"]'>
                                 <label class="form-check-label" for="pidClaim_issuance_date">
                                     Date of issue
                                 </label>
@@ -584,9 +573,9 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_expiry_date"
-                                       data-mdoc-claim="expiry_date"
-                                       data-vc-path='["date_of_expiry"]' checked>
+                                    id="pidClaim_expiry_date"
+                                    data-mdoc-claim="expiry_date"
+                                    data-vc-path='["date_of_expiry"]' checked>
                                 <label class="form-check-label" for="pidClaim_expiry_date">
                                     Date of expiry
                                 </label>
@@ -595,9 +584,9 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_issuing_authority"
-                                       data-mdoc-claim="issuing_authority"
-                                       data-vc-path='["issuing_authority"]' checked>
+                                    id="pidClaim_issuing_authority"
+                                    data-mdoc-claim="issuing_authority"
+                                    data-vc-path='["issuing_authority"]' checked>
                                 <label class="form-check-label" for="pidClaim_issuing_authority">
                                     Issuing authority
                                 </label>
@@ -606,9 +595,9 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_document_number"
-                                       data-mdoc-claim="document_number"
-                                       data-vc-path='["document_number"]'>
+                                    id="pidClaim_document_number"
+                                    data-mdoc-claim="document_number"
+                                    data-vc-path='["document_number"]'>
                                 <label class="form-check-label" for="pidClaim_document_number">
                                     Document number
                                 </label>
@@ -617,9 +606,9 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_issuing_jurisdiction"
-                                       data-mdoc-claim="issuing_jurisdiction"
-                                       data-vc-path='["issuing_jurisdiction"]'>
+                                    id="pidClaim_issuing_jurisdiction"
+                                    data-mdoc-claim="issuing_jurisdiction"
+                                    data-vc-path='["issuing_jurisdiction"]'>
                                 <label class="form-check-label" for="pidClaim_issuing_jurisdiction">
                                     Issuing jurisdiction
                                 </label>
@@ -628,41 +617,39 @@
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_issuing_country"
-                                       data-mdoc-claim="issuing_country"
-                                       data-vc-path='["issuing_country"]' checked>
+                                    id="pidClaim_issuing_country"
+                                    data-mdoc-claim="issuing_country"
+                                    data-vc-path='["issuing_country"]' checked>
                                 <label class="form-check-label" for="pidClaim_issuing_country">
                                     Issuing country
                                 </label>
                             </div>
                         </div>
-                    </div>
-                    <h3 class="h6 mt-3">Contact details</h3>
-                    <div class="row">
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_email_address"
-                                       data-mdoc-claim="email_address"
-                                       data-vc-path='["email"]'>
+                                    id="pidClaim_email_address"
+                                    data-mdoc-claim="email_address"
+                                    data-vc-path='["email"]'>
                                 <label class="form-check-label" for="pidClaim_email_address">
-                                    Email address
+                                    Email address of holder
                                 </label>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check mb-2">
                                 <input class="form-check-input pid-dcql-claim" type="checkbox"
-                                       id="pidClaim_mobile_phone_number"
-                                       data-mdoc-claim="mobile_phone_number"
-                                       data-vc-path='["phone_number"]'>
+                                    id="pidClaim_mobile_phone_number"
+                                    data-mdoc-claim="mobile_phone_number"
+                                    data-vc-path='["phone_number"]'>
                                 <label class="form-check-label" for="pidClaim_mobile_phone_number">
-                                    Mobile phone number
+                                    Mobile phone of holder
                                 </label>
                             </div>
                         </div>
                     </div>
                 </fieldset>
+
                 <div class="mt-3">
                     <label for="pidDcqlPreview" class="form-label fw-semibold">Request preview</label>
                     <textarea id="pidDcqlPreview" class="form-control font-monospace small"
